@@ -1,0 +1,40 @@
+{
+  "archivo": "factura_004.pdf",
+  "datos": {
+    "emisor": "Consultoría Horizonte S.C.",
+    "rfc_emisor": "GVI150220K8P",
+    "fecha": "2026-08-03",
+    "subtotal": 29583.78,
+    "iva": 4733.4,
+    "total": 34317.18,
+    "conceptos": [
+      {
+        "descripcion": "Capacitación en sitio",
+        "cantidad": 2,
+        "importe": 9957.62
+      },
+      {
+        "descripcion": "Mantenimiento de equipo",
+        "cantidad": 1,
+        "importe": 2210.64
+      },
+      {
+        "descripcion": "Servicio de consultoría por hora",
+        "cantidad": 1,
+        "importe": 704.1
+      },
+      {
+        "descripcion": "Licencia anual de software",
+        "cantidad": 4,
+        "importe": 13879.48
+      },
+      {
+        "descripcion": "Soporte técnico mensual",
+        "cantidad": 3,
+        "importe": 2831.94
+      }
+    ]
+  },
+  "estado_esperado": "validado",
+  "motivo_esperado": null
+}

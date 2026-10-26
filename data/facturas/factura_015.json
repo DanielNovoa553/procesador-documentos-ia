@@ -1,0 +1,25 @@
+{
+  "archivo": "factura_015.pdf",
+  "datos": {
+    "emisor": "Tecnologías del Valle S.A. de C.V.",
+    "rfc_emisor": "MDS021020CF0",
+    "fecha": "2025-11-23",
+    "subtotal": 4992.16,
+    "iva": 798.75,
+    "total": 5790.91,
+    "conceptos": [
+      {
+        "descripcion": "Licencia anual de software",
+        "cantidad": 1,
+        "importe": 4375.64
+      },
+      {
+        "descripcion": "Hospedaje de servidor (mensual)",
+        "cantidad": 1,
+        "importe": 616.52
+      }
+    ]
+  },
+  "estado_esperado": "validado",
+  "motivo_esperado": null
+}

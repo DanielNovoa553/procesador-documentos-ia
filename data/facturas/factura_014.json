@@ -1,0 +1,35 @@
+{
+  "archivo": "factura_014.pdf",
+  "datos": {
+    "emisor": "Comercial Norte S.A. de C.V.",
+    "rfc_emisor": "SXR961211DD4",
+    "fecha": "2026-02-10",
+    "subtotal": 22198.93,
+    "iva": 3551.83,
+    "total": 25750.76,
+    "conceptos": [
+      {
+        "descripcion": "Flete local",
+        "cantidad": 6,
+        "importe": 8692.68
+      },
+      {
+        "descripcion": "Tóner para impresora",
+        "cantidad": 5,
+        "importe": 6971.25
+      },
+      {
+        "descripcion": "Soporte técnico mensual",
+        "cantidad": 4,
+        "importe": 3728.8
+      },
+      {
+        "descripcion": "Mantenimiento de equipo",
+        "cantidad": 3,
+        "importe": 2806.2
+      }
+    ]
+  },
+  "estado_esperado": "validado",
+  "motivo_esperado": null
+}
