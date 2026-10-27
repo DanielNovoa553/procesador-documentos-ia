@@ -1,0 +1,35 @@
+{
+  "emisor": "Estudio Creativo Luna S.C.",
+  "rfc_emisor": "SDC120417QIW",
+  "fecha": "2026-09-20",
+  "subtotal": 22336.03,
+  "iva": 3573.76,
+  "total": 25909.79,
+  "conceptos": [
+    {
+      "descripcion": "Hospedaje de servidor (mensual)",
+      "cantidad": 6.0,
+      "importe": 2519.58
+    },
+    {
+      "descripcion": "Capacitación en sitio",
+      "cantidad": 3.0,
+      "importe": 9843.12
+    },
+    {
+      "descripcion": "Flete local",
+      "cantidad": 6.0,
+      "importe": 6447.6
+    },
+    {
+      "descripcion": "Servicio de consultoría por hora",
+      "cantidad": 4.0,
+      "importe": 2611.76
+    },
+    {
+      "descripcion": "Soporte técnico mensual",
+      "cantidad": 1.0,
+      "importe": 713.97
+    }
+  ]
+}

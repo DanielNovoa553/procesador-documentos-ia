@@ -1,0 +1,35 @@
+{
+  "emisor": "Constructora Meridiana S.A. de C.V.",
+  "rfc_emisor": "YEE100906Q71",
+  "fecha": "2026-07-09",
+  "subtotal": 39132.49,
+  "iva": 6261.2,
+  "total": 45393.69,
+  "conceptos": [
+    {
+      "descripcion": "Licencia anual de software",
+      "cantidad": 3.0,
+      "importe": 13471.89
+    },
+    {
+      "descripcion": "Capacitación en sitio",
+      "cantidad": 3.0,
+      "importe": 7732.62
+    },
+    {
+      "descripcion": "Tóner para impresora",
+      "cantidad": 2.0,
+      "importe": 3307.22
+    },
+    {
+      "descripcion": "Soporte técnico mensual",
+      "cantidad": 1.0,
+      "importe": 828.48
+    },
+    {
+      "descripcion": "Diseño de logotipo",
+      "cantidad": 4.0,
+      "importe": 13792.28
+    }
+  ]
+}

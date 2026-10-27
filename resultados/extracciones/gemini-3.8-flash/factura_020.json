@@ -1,0 +1,35 @@
+{
+  "emisor": "Servicios Alfa S.A. de C.V.",
+  "rfc_emisor": "MBP0204273WT",
+  "fecha": "2027-01-24",
+  "subtotal": 44512.56,
+  "iva": 7122.01,
+  "total": 51634.57,
+  "conceptos": [
+    {
+      "descripcion": "Papel bond carta (caja)",
+      "cantidad": 4.0,
+      "importe": 629.76
+    },
+    {
+      "descripcion": "Mantenimiento de equipo",
+      "cantidad": 6.0,
+      "importe": 14093.82
+    },
+    {
+      "descripcion": "Soporte técnico mensual",
+      "cantidad": 4.0,
+      "importe": 7613.4
+    },
+    {
+      "descripcion": "Diseño de logotipo",
+      "cantidad": 6.0,
+      "importe": 20593.5
+    },
+    {
+      "descripcion": "Servicio de consultoría por hora",
+      "cantidad": 3.0,
+      "importe": 1582.08
+    }
+  ]
+}

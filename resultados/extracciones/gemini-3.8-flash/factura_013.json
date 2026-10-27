@@ -1,0 +1,30 @@
+{
+  "emisor": "Tecnologías del Valle S.A. de C.V.",
+  "rfc_emisor": "FNP100428ZDK",
+  "fecha": "2026-04-14",
+  "subtotal": 14340.43,
+  "iva": 2294.47,
+  "total": 16634.9,
+  "conceptos": [
+    {
+      "descripcion": "Papel bond carta (caja)",
+      "cantidad": 1.0,
+      "importe": 282.94
+    },
+    {
+      "descripcion": "Flete local",
+      "cantidad": 5.0,
+      "importe": 2087.45
+    },
+    {
+      "descripcion": "Tóner para impresora",
+      "cantidad": 6.0,
+      "importe": 10794.84
+    },
+    {
+      "descripcion": "Servicio de consultoría por hora",
+      "cantidad": 1.0,
+      "importe": 1175.2
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "emisor": "Estudio Creativo Luna S.C.",
+  "rfc_emisor": "IZB090904YF9",
+  "fecha": "2026-05-28",
+  "subtotal": 6443.67,
+  "iva": 1030.99,
+  "total": 7474.66,
+  "conceptos": [
+    {
+      "descripcion": "Capacitación en sitio",
+      "cantidad": 1.0,
+      "importe": 3209.67
+    },
+    {
+      "descripcion": "Servicio de consultoría por hora",
+      "cantidad": 3.0,
+      "importe": 3234.0
+    }
+  ]
+}

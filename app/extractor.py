@@ -38,7 +38,7 @@ def _obtener_cliente():
     return _client
 
 
-def extraer(pdf_bytes: bytes, reintentos: int = 2) -> Factura:
+def extraer(pdf_bytes: bytes, reintentos: int = 4) -> Factura:
     modelo = os.getenv("GEMINI_MODEL")
     if not modelo:
         raise ExtraccionError("Falta GEMINI_MODEL en el archivo .env")
@@ -62,8 +62,8 @@ def extraer(pdf_bytes: bytes, reintentos: int = 2) -> Factura:
             )
             break
         except errors.APIError as e:
-            if e.code in (429, 500, 503) and intento < reintentos:
-                time.sleep(2 ** (intento + 1))
+            if e.code in (500, 503) and intento < reintentos:
+                time.sleep(15 * (intento + 1))
                 continue
             raise ExtraccionError(f"Error de la API de Gemini ({e.code}): {e.message}") from e
 
