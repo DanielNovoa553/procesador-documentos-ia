@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 from app.extractor import ExtraccionError, extraer
-from app.schemas import Factura
+from app.schemas import Factura, factura_desde_json
 
 RUTA_MOCK = Path("resultados/extracciones")
 
@@ -31,4 +31,4 @@ def extraer_segun_modo(nombre_archivo: str, pdf_bytes: bytes) -> Factura:
             f"Modo simulado: no hay una extracción guardada para '{nombre_archivo}'. "
             "Usa uno de los archivos ya evaluados o cambia EXTRACTOR_MODO a real."
         )
-    return Factura.model_validate_json(ruta.read_text(encoding="utf-8"))
+    return factura_desde_json(ruta.read_text(encoding="utf-8"))

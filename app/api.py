@@ -125,3 +125,12 @@ def obtener_documento(documento_id: int, db: Session = Depends(get_db)):
     if documento is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return documento
+
+@app.delete("/documentos/{documento_id}", status_code=204)
+def eliminar_documento(documento_id: int, db: Session = Depends(get_db)):
+    documento = db.get(Documento, documento_id)
+    if documento is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    db.delete(documento)
+    db.commit()
+    return Response(status_code=204)

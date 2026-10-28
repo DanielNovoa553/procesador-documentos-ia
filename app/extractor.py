@@ -6,19 +6,26 @@ from google import genai
 from google.genai import errors, types
 from pydantic import ValidationError
 
-from app.schemas import Factura
+from app.schemas import Factura, factura_desde_json
 
 load_dotenv()
 
-PROMPT = """Eres un sistema de extracción de datos de facturas. Lee el documento y devuelve los datos solicitados.
+PROMPT = """Eres un sistema de extracción de datos de facturas, incluidas las facturas electrónicas mexicanas (CFDI). Lee el documento y devuelve los datos solicitados.
 
-Reglas:
+Reglas generales:
 - Transcribe exactamente lo que está impreso. No calcules, no corrijas y no completes ningún valor, aunque los montos no cuadren entre sí.
 - Si un dato no aparece en el documento, devuelve null. No lo inventes.
 - Los montos son números, sin símbolo de moneda ni separador de miles.
-- La fecha va en formato AAAA-MM-DD. Las fechas escritas solo con números están en formato día/mes/año.
-- El RFC va tal como aparece, sin espacios ni guiones.
-- Los conceptos van en el mismo orden en que aparecen."""
+- La fecha va en formato AAAA-MM-DD y es solo la fecha de emisión, sin la hora. Las fechas escritas solo con números están en formato día/mes/año.
+- Los RFC van tal como aparecen, sin espacios ni guiones.
+- Los conceptos van en el mismo orden en que aparecen.
+
+Datos específicos:
+- emisor y rfc_emisor son los de quien emite la factura. nombre_receptor y rfc_receptor son los de quien la recibe. No los confundas.
+- folio_fiscal es el identificador UUID (36 caracteres con guiones). No lo confundas con folio, que es el número consecutivo del emisor, ni con serie, que es la letra o código que lo acompaña.
+- lugar_expedicion es el código postal del lugar de emisión; codigo_postal_receptor es el del receptor.
+- Los campos de texto como regimen_fiscal_emisor, regimen_fiscal_receptor, uso_cfdi, tipo_comprobante, exportacion, moneda, forma_pago, metodo_pago, unidad y objeto_impuesto van tal como aparecen impresos.
+- No incluyas sellos digitales, la cadena original ni datos del certificado."""
 
 
 class ExtraccionError(Exception):
@@ -72,6 +79,6 @@ def extraer(pdf_bytes: bytes, reintentos: int = 4) -> Factura:
         raise ExtraccionError("Gemini devolvió una respuesta vacía")
 
     try:
-        return Factura.model_validate_json(texto)
-    except ValidationError as e:
+        return factura_desde_json(texto)
+    except ValueError as e:
         raise ExtraccionError(f"La respuesta no cumple el esquema: {e}") from e

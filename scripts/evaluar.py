@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from app.comparacion import CAMPOS, comparar
 from app.extractor import ExtraccionError, extraer
-from app.schemas import Factura
+from app.schemas import factura_desde_json
 from app.validators import validar
 
 CARPETA = Path("data/facturas")
@@ -25,7 +25,7 @@ CACHE = SALIDA / "extracciones" / MODELO
 def obtener_factura(nombre: str, usar_cache: bool):
     ruta_cache = CACHE / f"{nombre}.json"
     if usar_cache and ruta_cache.exists():
-        return Factura.model_validate_json(ruta_cache.read_text(encoding="utf-8")), None
+        return factura_desde_json(ruta_cache.read_text(encoding="utf-8")), None
     try:
         factura = extraer((CARPETA / f"{nombre}.pdf").read_bytes())
     except ExtraccionError as e:
