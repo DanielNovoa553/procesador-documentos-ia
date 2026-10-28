@@ -183,22 +183,39 @@ async function cargarLista() {
 
 /* ---------- Detalle ---------- */
 
+/* ---------- Detalle ---------- */
+
 function dato(clave, valor) {
   const f = el("div", null, "dato");
   f.append(el("span", clave, "clave"), el("span", vacio(valor), "valor"));
   return f;
 }
 
+function bloque(titulo, filas) {
+  const b = el("div", null, "bloque");
+  b.append(el("div", titulo, "seccion-titulo"));
+  const rejilla = el("div", null, "rejilla");
+  for (const [clave, valor] of filas) rejilla.append(dato(clave, valor));
+  b.append(rejilla);
+  return b;
+}
+
 function abrirDetalle(d) {
+  const x = d.datos;
   $("detalle-titulo").textContent = d.archivo;
   $("detalle-fecha").textContent = "Procesado el " + new Date(d.creado_en).toLocaleString("es-MX");
 
   const cuerpo = $("detalle-cuerpo");
   cuerpo.replaceChildren();
 
-  const estadoFila = el("div", null, "mb-3");
-  estadoFila.append(insignia(d.estado));
-  cuerpo.append(estadoFila);
+  const cabecera = el("div", null, "d-flex flex-wrap align-items-center gap-3 mb-3");
+  cabecera.append(insignia(d.estado));
+  if (x.folio_fiscal) {
+    const u = el("span", null, "text-secondary small");
+    u.append(document.createTextNode("Folio fiscal: "), el("span", x.folio_fiscal, "uuid"));
+    cabecera.append(u);
+  }
+  cuerpo.append(cabecera);
 
   if (d.motivos.length > 0) {
     const aviso = el("div", null, "aviso-revision");
@@ -209,46 +226,91 @@ function abrirDetalle(d) {
     cuerpo.append(aviso);
   }
 
-  cuerpo.append(el("div", "Datos de la factura", "seccion-titulo"));
   cuerpo.append(
-    dato("Emisor", d.datos.emisor),
-    dato("RFC", d.datos.rfc_emisor),
-    dato("Fecha", formatearFecha(d.datos.fecha)),
-    dato("Subtotal", moneda(d.datos.subtotal)),
-    dato("IVA", moneda(d.datos.iva)),
-    dato("Total", moneda(d.datos.total))
+    bloque("Emisor", [
+      ["Nombre", x.emisor],
+      ["RFC", x.rfc_emisor],
+      ["Régimen fiscal", x.regimen_fiscal_emisor],
+      ["Lugar de expedición (C. P.)", x.lugar_expedicion],
+    ]),
+    bloque("Receptor", [
+      ["Nombre", x.nombre_receptor],
+      ["RFC", x.rfc_receptor],
+      ["Régimen fiscal", x.regimen_fiscal_receptor],
+      ["Código postal", x.codigo_postal_receptor],
+      ["Uso de CFDI", x.uso_cfdi],
+    ]),
+    bloque("Comprobante", [
+      ["Tipo", x.tipo_comprobante],
+      ["Serie", x.serie],
+      ["Folio", x.folio],
+      ["Fecha de emisión", formatearFecha(x.fecha)],
+      ["Moneda", x.moneda],
+      ["Forma de pago", x.forma_pago],
+      ["Método de pago", x.metodo_pago],
+      ["Exportación", x.exportacion],
+    ])
   );
 
-  cuerpo.append(el("div", "Conceptos", "seccion-titulo"));
+  const conceptos = x.conceptos || [];
+  const descuento = conceptos.reduce((s, c) => s + (c.descuento || 0), 0);
+  const filasImportes = [["Subtotal", moneda(x.subtotal)]];
+  if (descuento > 0) filasImportes.push(["Descuento", moneda(descuento)]);
+  filasImportes.push(
+    ["IVA", x.iva === null || x.iva === undefined ? "Sin IVA" : moneda(x.iva)],
+    ["Total", moneda(x.total)]
+  );
+  cuerpo.append(bloque("Importes", filasImportes));
+
+  const seccion = el("div", null, "bloque");
+  seccion.append(el("div", "Conceptos", "seccion-titulo"));
   const envoltura = el("div", null, "table-responsive");
   const tabla = el("table", null, "table table-sm tabla mb-0");
   const thead = el("thead");
   const cab = el("tr");
-  cab.append(el("th", "Descripción"), el("th", "Cant.", "text-end"), el("th", "Importe", "text-end"));
+  for (const [texto, clase] of [
+    ["Clave", ""], ["Descripción", ""], ["Cant.", "text-end"],
+    ["Unidad", ""], ["V. unitario", "text-end"], ["Importe", "text-end"],
+  ]) {
+    cab.append(el("th", texto, clase));
+  }
   thead.append(cab);
   const tb = el("tbody");
-  const conceptos = d.datos.conceptos || [];
+
   if (conceptos.length === 0) {
     const tr = el("tr");
     const td = el("td", "Sin conceptos", "text-secondary");
-    td.colSpan = 3;
+    td.colSpan = 6;
     tr.append(td);
     tb.append(tr);
   }
   for (const c of conceptos) {
     const tr = el("tr");
     tr.style.cursor = "default";
-    tr.append(el("td", c.descripcion), el("td", c.cantidad, "num"), el("td", moneda(c.importe), "num"));
+    const desc = el("td", c.descripcion);
+    if (c.objeto_impuesto) desc.append(el("div", c.objeto_impuesto, "celda-sec"));
+    const unidad = el("td", vacio(c.unidad));
+    if (c.clave_unidad) unidad.append(el("div", c.clave_unidad, "celda-sec"));
+    tr.append(
+      el("td", vacio(c.clave_prod_serv)),
+      desc,
+      el("td", c.cantidad, "num"),
+      unidad,
+      el("td", c.valor_unitario === null || c.valor_unitario === undefined ? "—" : moneda(c.valor_unitario), "num"),
+      el("td", moneda(c.importe), "num")
+    );
     tb.append(tr);
   }
   tabla.append(thead, tb);
   envoltura.append(tabla);
-  cuerpo.append(envoltura);
+  seccion.append(envoltura);
+  cuerpo.append(seccion);
 
-  cuerpo.append(el("div", "Origen", "seccion-titulo"));
-  cuerpo.append(dato("Extraído con", d.modelo));
+  cuerpo.append(bloque("Origen", [["Extraído con", d.modelo]]));
 
-  const acciones = el("div", null, "d-flex gap-2 mt-4");
+  const pie = $("detalle-pie");
+  pie.replaceChildren();
+
   const copiar = el("button", null, "btn btn-outline-secondary btn-sm");
   copiar.type = "button";
   copiar.append(el("i", null, "bi bi-clipboard me-1"), document.createTextNode("Copiar JSON"));
@@ -260,6 +322,7 @@ function abrirDetalle(d) {
       toast("No se pudo copiar. Usa el botón de descarga.", "warning");
     }
   });
+
   const descargar = el("button", null, "btn btn-outline-secondary btn-sm");
   descargar.type = "button";
   descargar.append(el("i", null, "bi bi-download me-1"), document.createTextNode("Descargar JSON"));
@@ -272,10 +335,30 @@ function abrirDetalle(d) {
     a.click();
     URL.revokeObjectURL(url);
   });
-  acciones.append(copiar, descargar);
-  cuerpo.append(acciones);
 
-  bootstrap.Offcanvas.getOrCreateInstance($("detalle")).show();
+  const eliminar = el("button", null, "btn btn-outline-danger btn-sm me-auto");
+  eliminar.type = "button";
+  eliminar.append(el("i", null, "bi bi-trash me-1"), document.createTextNode("Eliminar"));
+  eliminar.addEventListener("click", async () => {
+    if (!confirm("¿Eliminar este documento de la base de datos?")) return;
+    try {
+      const r = await fetch("/documentos/" + d.id, { method: "DELETE" });
+      if (!r.ok) throw new Error("respuesta " + r.status);
+      bootstrap.Modal.getOrCreateInstance($("detalle")).hide();
+      toast("Documento eliminado.", "success");
+      await cargarLista();
+    } catch (e) {
+      toast("No se pudo eliminar el documento.", "danger");
+    }
+  });
+
+  const cerrar = el("button", "Cerrar", "btn btn-primary btn-sm");
+  cerrar.type = "button";
+  cerrar.setAttribute("data-bs-dismiss", "modal");
+
+  pie.append(eliminar, copiar, descargar, cerrar);
+
+  bootstrap.Modal.getOrCreateInstance($("detalle")).show();
 }
 
 /* ---------- Subida de archivos ---------- */

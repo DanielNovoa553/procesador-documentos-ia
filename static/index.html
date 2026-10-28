@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="es" data-bs-theme="light">
 <head>
+  <link rel="icon" href="data:,">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Procesador de documentos</title>
@@ -109,15 +110,20 @@
     </section>
   </main>
 
-  <div id="detalle" class="offcanvas offcanvas-end" tabindex="-1" aria-labelledby="detalle-titulo">
-    <div class="offcanvas-header border-bottom">
-      <div>
-        <h2 id="detalle-titulo" class="offcanvas-title h5 mb-0"></h2>
-        <div id="detalle-fecha" class="text-secondary small"></div>
+   <div class="modal fade" id="detalle" tabindex="-1" aria-labelledby="detalle-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 id="detalle-titulo" class="modal-title h5 mb-0"></h2>
+            <div id="detalle-fecha" class="text-secondary small"></div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div id="detalle-cuerpo" class="modal-body"></div>
+        <div id="detalle-pie" class="modal-footer"></div>
       </div>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
     </div>
-    <div id="detalle-cuerpo" class="offcanvas-body"></div>
   </div>
 
   <div id="toasts" class="toast-container position-fixed bottom-0 end-0 p-3"></div>

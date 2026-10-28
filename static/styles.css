@@ -189,3 +189,24 @@ body {
   font-weight: 600;
   margin: 1.25rem 0 0.4rem;
 }
+
+.modal-content {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+}
+.modal-header, .modal-footer { border-color: var(--borde); }
+
+.bloque { margin-bottom: 1.5rem; }
+.bloque .seccion-titulo { margin-top: 0; }
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0 2.5rem;
+}
+.uuid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+.celda-sec { color: var(--tenue); font-size: 0.78rem; }
