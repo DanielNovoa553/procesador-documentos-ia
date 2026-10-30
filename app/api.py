@@ -2,7 +2,8 @@ import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-
+import json
+from app.schemas import factura_desde_json
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +11,6 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
 from app import servicio
 from app.db import Base, engine, get_db
 from app.extractor import ExtraccionError
@@ -134,3 +134,14 @@ def eliminar_documento(documento_id: int, db: Session = Depends(get_db)):
     db.delete(documento)
     db.commit()
     return Response(status_code=204)
+
+@app.post("/documentos/{documento_id}/revalidar", response_model=DocumentoOut)
+def revalidar_documento(documento_id: int, db: Session = Depends(get_db)):
+    documento = db.get(Documento, documento_id)
+    if documento is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    resultado = validar(factura_desde_json(json.dumps(documento.datos)))
+    documento.estado = resultado.estado
+    documento.motivos = [{"codigo": m.codigo, "detalle": m.detalle} for m in resultado.motivos]
+    db.commit()
+    return documento

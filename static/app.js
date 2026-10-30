@@ -291,7 +291,7 @@ function abrirDetalle(d) {
     const unidad = el("td", vacio(c.unidad));
     if (c.clave_unidad) unidad.append(el("div", c.clave_unidad, "celda-sec"));
     tr.append(
-      el("td", vacio(c.clave_prod_serv)),
+      el("td", vacio(c.clave_prod_serv || c.no_identificacion)),
       desc,
       el("td", c.cantidad, "num"),
       unidad,

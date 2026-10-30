@@ -66,7 +66,9 @@ Datos específicos:
 - folio_fiscal es el identificador UUID (36 caracteres con guiones). No lo confundas con folio, que es el número consecutivo del emisor, ni con serie, que es la letra o código que lo acompaña.
 - lugar_expedicion es el código postal del lugar de emisión; codigo_postal_receptor es el del receptor.
 - Los campos de texto como regimen_fiscal_emisor, regimen_fiscal_receptor, uso_cfdi, tipo_comprobante, exportacion, moneda, forma_pago, metodo_pago, unidad y objeto_impuesto van tal como aparecen impresos.
-- No incluyas sellos digitales, la cadena original ni datos del certificado."""
+- No incluyas sellos digitales, la cadena original ni datos del certificado.
+- clave_prod_serv es la clave del catálogo del SAT (código numérico de 8 dígitos). no_identificacion es el código interno del producto que asigna el emisor, como el de la columna "Clave" de una nota de venta 
+(por ejemplo ADP4). Si el documento solo trae un código corto del emisor, ponlo en no_identificacion y deja clave_prod_serv en null."""
 
 
 class ExtraccionError(Exception):

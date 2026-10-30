@@ -87,3 +87,15 @@ def test_descuento_se_resta_antes_del_iva():
     c = nuevo_concepto(descripcion="Licencia", cantidad=1, importe=1000.0, descuento=100.0)
     f = factura_base(conceptos=[c], subtotal=1000.0, iva=144.0, total=1044.0)
     assert validar(f).estado == "validado"
+
+def test_iva_parcial_por_tasas_mixtas_es_valido():
+    conceptos = [
+        nuevo_concepto(descripcion="Libros", cantidad=1, importe=5250.03),
+        nuevo_concepto(descripcion="Material", cantidad=1, importe=5377.56),
+    ]
+    f = factura_base(conceptos=conceptos, subtotal=10627.59, iva=860.41, total=11488.00)
+    assert validar(f).estado == "validado"
+
+
+def test_iva_mayor_al_16_por_ciento_va_a_revision():
+    assert "iva_incoherente" in validar(factura_base(iva=400.0, total=1400.0)).codigos

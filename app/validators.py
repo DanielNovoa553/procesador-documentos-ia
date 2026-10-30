@@ -91,13 +91,12 @@ def validar(factura: Factura, hoy: date | None = None) -> ResultadoValidacion:
     if factura.subtotal is not None:
         base = round(factura.subtotal - descuento, 2)
 
-        if abs(iva) > TOLERANCIA:
-            iva_esperado = round(base * TASA_IVA, 2)
-            if abs(iva_esperado - iva) > TOLERANCIA:
-                motivos.append(Motivo(
-                    "iva_incoherente",
-                    f"El IVA ({iva:.2f}) no corresponde al 16 % de la base ({iva_esperado:.2f})",
-                ))
+        iva_maximo = round(base * TASA_IVA, 2)
+        if iva < -TOLERANCIA or iva > iva_maximo + TOLERANCIA:
+            motivos.append(Motivo(
+                "iva_incoherente",
+                f"El IVA ({iva:.2f}) debe estar entre 0 y el 16 % de la base ({iva_maximo:.2f})",
+            ))
 
         if factura.total is not None:
             total_esperado = round(base + iva, 2)
