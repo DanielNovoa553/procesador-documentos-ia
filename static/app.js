@@ -183,39 +183,44 @@ async function cargarLista() {
 
 /* ---------- Detalle ---------- */
 
-/* ---------- Detalle ---------- */
-
-function dato(clave, valor) {
-  const f = el("div", null, "dato");
-  f.append(el("span", clave, "clave"), el("span", vacio(valor), "valor"));
-  return f;
+function campo(clave, valor, ancho, extra) {
+  const c = el("div", null, "campo" + (ancho ? " ancho" : ""));
+  c.append(el("div", clave, "campo-clave"));
+  const faltante = valor === null || valor === undefined || valor === "";
+  const clases = "campo-valor" + (faltante ? " sin-dato" : "") + (extra && !faltante ? " " + extra : "");
+  const v = el("div", faltante ? "No aparece" : valor, clases);
+  if (faltante) v.title = "No aparece en el documento";
+  c.append(v);
+  return c;
 }
 
-function bloque(titulo, filas) {
-  const b = el("div", null, "bloque");
-  b.append(el("div", titulo, "seccion-titulo"));
-  const rejilla = el("div", null, "rejilla");
-  for (const [clave, valor] of filas) rejilla.append(dato(clave, valor));
-  b.append(rejilla);
-  return b;
+function panel(titulo, hijos) {
+  const p = el("section", null, "panel");
+  p.append(el("h3", titulo, "panel-titulo"));
+  const g = el("div", null, "panel-grid");
+  g.append(...hijos);
+  p.append(g);
+  return p;
+}
+
+function filaImporte(clave, valor, total) {
+  const f = el("div", null, "importe-fila" + (total ? " importe-total" : ""));
+  f.append(el("span", clave), el("span", valor));
+  return f;
 }
 
 function abrirDetalle(d) {
   const x = d.datos;
   $("detalle-titulo").textContent = d.archivo;
-  $("detalle-fecha").textContent = "Procesado el " + new Date(d.creado_en).toLocaleString("es-MX");
+  $("detalle-fecha").textContent =
+    "Procesado el " + new Date(d.creado_en).toLocaleString("es-MX") + " · Extraído con " + d.modelo;
 
   const cuerpo = $("detalle-cuerpo");
   cuerpo.replaceChildren();
 
-  const cabecera = el("div", null, "d-flex flex-wrap align-items-center gap-3 mb-3");
-  cabecera.append(insignia(d.estado));
-  if (x.folio_fiscal) {
-    const u = el("span", null, "text-secondary small");
-    u.append(document.createTextNode("Folio fiscal: "), el("span", x.folio_fiscal, "uuid"));
-    cabecera.append(u);
-  }
-  cuerpo.append(cabecera);
+  const barra = el("div", null, "mb-3");
+  barra.append(insignia(d.estado));
+  cuerpo.append(barra);
 
   if (d.motivos.length > 0) {
     const aviso = el("div", null, "aviso-revision");
@@ -226,46 +231,41 @@ function abrirDetalle(d) {
     cuerpo.append(aviso);
   }
 
-  cuerpo.append(
-    bloque("Emisor", [
-      ["Nombre", x.emisor],
-      ["RFC", x.rfc_emisor],
-      ["Régimen fiscal", x.regimen_fiscal_emisor],
-      ["Lugar de expedición (C. P.)", x.lugar_expedicion],
+  const paneles = el("div", null, "paneles");
+  paneles.append(
+    panel("Emisor", [
+      campo("Nombre", x.emisor, true),
+      campo("RFC", x.rfc_emisor),
+      campo("Lugar de expedición (C. P.)", x.lugar_expedicion),
+      campo("Régimen fiscal", x.regimen_fiscal_emisor, true),
     ]),
-    bloque("Receptor", [
-      ["Nombre", x.nombre_receptor],
-      ["RFC", x.rfc_receptor],
-      ["Régimen fiscal", x.regimen_fiscal_receptor],
-      ["Código postal", x.codigo_postal_receptor],
-      ["Uso de CFDI", x.uso_cfdi],
+    panel("Receptor", [
+      campo("Nombre", x.nombre_receptor, true),
+      campo("RFC", x.rfc_receptor),
+      campo("Código postal", x.codigo_postal_receptor),
+      campo("Régimen fiscal", x.regimen_fiscal_receptor, true),
+      campo("Uso de CFDI", x.uso_cfdi, true),
     ]),
-    bloque("Comprobante", [
-      ["Tipo", x.tipo_comprobante],
-      ["Serie", x.serie],
-      ["Folio", x.folio],
-      ["Fecha de emisión", formatearFecha(x.fecha)],
-      ["Moneda", x.moneda],
-      ["Forma de pago", x.forma_pago],
-      ["Método de pago", x.metodo_pago],
-      ["Exportación", x.exportacion],
+    panel("Comprobante", [
+      campo("Folio fiscal (UUID)", x.folio_fiscal, true, "uuid"),
+      campo("Tipo", x.tipo_comprobante),
+      campo("Fecha de emisión", x.fecha ? formatearFecha(x.fecha) : null),
+      campo("Serie", x.serie),
+      campo("Folio del emisor", x.folio),
+      campo("Moneda", x.moneda),
+      campo("Exportación", x.exportacion),
+      campo("Forma de pago", x.forma_pago),
+      campo("Método de pago", x.metodo_pago),
     ])
   );
+  cuerpo.append(paneles);
 
   const conceptos = x.conceptos || [];
-  const descuento = conceptos.reduce((s, c) => s + (c.descuento || 0), 0);
-  const filasImportes = [["Subtotal", moneda(x.subtotal)]];
-  if (descuento > 0) filasImportes.push(["Descuento", moneda(descuento)]);
-  filasImportes.push(
-    ["IVA", x.iva === null || x.iva === undefined ? "Sin IVA" : moneda(x.iva)],
-    ["Total", moneda(x.total)]
-  );
-  cuerpo.append(bloque("Importes", filasImportes));
 
-  const seccion = el("div", null, "bloque");
-  seccion.append(el("div", "Conceptos", "seccion-titulo"));
-  const envoltura = el("div", null, "table-responsive");
-  const tabla = el("table", null, "table table-sm tabla mb-0");
+  const secConceptos = el("section", null, "panel");
+  secConceptos.append(el("h3", "Conceptos", "panel-titulo"));
+  const envoltura = el("div", null, "tabla-conceptos");
+  const tabla = el("table", null, "table tabla mb-0");
   const thead = el("thead");
   const cab = el("tr");
   for (const [texto, clase] of [
@@ -286,7 +286,6 @@ function abrirDetalle(d) {
   }
   for (const c of conceptos) {
     const tr = el("tr");
-    tr.style.cursor = "default";
     const desc = el("td", c.descripcion);
     if (c.objeto_impuesto) desc.append(el("div", c.objeto_impuesto, "celda-sec"));
     const unidad = el("td", vacio(c.unidad));
@@ -303,10 +302,21 @@ function abrirDetalle(d) {
   }
   tabla.append(thead, tb);
   envoltura.append(tabla);
-  seccion.append(envoltura);
-  cuerpo.append(seccion);
+  secConceptos.append(envoltura);
 
-  cuerpo.append(bloque("Origen", [["Extraído con", d.modelo]]));
+  const descuento = conceptos.reduce((s, c) => s + (c.descuento || 0), 0);
+  const secImportes = el("section", null, "panel");
+  secImportes.append(el("h3", "Importes", "panel-titulo"));
+  secImportes.append(filaImporte("Subtotal", moneda(x.subtotal)));
+  if (descuento > 0) secImportes.append(filaImporte("Descuento", moneda(descuento)));
+  secImportes.append(
+    filaImporte("IVA", x.iva === null || x.iva === undefined ? "Sin IVA" : moneda(x.iva)),
+    filaImporte("Total", moneda(x.total), true)
+  );
+
+  const inferior = el("div", null, "fila-inferior");
+  inferior.append(secConceptos, secImportes);
+  cuerpo.append(inferior);
 
   const pie = $("detalle-pie");
   pie.replaceChildren();

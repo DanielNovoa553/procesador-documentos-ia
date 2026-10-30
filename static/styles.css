@@ -210,3 +210,88 @@ body {
   word-break: break-all;
 }
 .celda-sec { color: var(--tenue); font-size: 0.78rem; }
+
+#detalle .modal-dialog { --bs-modal-width: min(1320px, 96vw); }
+#detalle .modal-body { padding: 1.25rem 1.5rem; font-size: 1rem; }
+
+.paneles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.fila-inferior {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.panel {
+  background: var(--pagina);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+.panel-titulo {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--marca);
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 1rem;
+}
+
+.campo { min-width: 0; }
+.campo.ancho { grid-column: 1 / -1; }
+.campo-clave {
+  font-size: 0.75rem;
+  color: var(--tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.campo-valor {
+  font-size: 1rem;
+  font-weight: 500;
+  word-break: break-word;
+}
+.campo-valor.sin-dato {
+  color: var(--tenue);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 0.92rem;
+}
+.campo-valor.uuid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.importe-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--borde);
+  font-size: 1rem;
+}
+.importe-fila:last-child { border-bottom: 0; }
+.importe-total { font-size: 1.35rem; font-weight: 700; color: var(--marca); }
+
+.tabla-conceptos { max-height: 280px; overflow: auto; }
+.tabla-conceptos td { font-size: 0.95rem; }
+.tabla-conceptos thead th {
+  position: sticky;
+  top: 0;
+  background: var(--pagina);
+}
+.tabla-conceptos tbody tr { cursor: default; }
+.tabla-conceptos tbody tr:hover td { background: transparent; }
+
+@media (max-width: 992px) {
+  .paneles, .fila-inferior { grid-template-columns: 1fr; }
+}
