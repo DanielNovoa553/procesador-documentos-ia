@@ -1,6 +1,6 @@
 # Resultados de la evaluación
 
-- Fecha: 2026-10-27
+- Fecha: 2026-10-28
 - Modelo: gemini-3.8-flash
 - Facturas evaluadas: 11 (documentos sintéticos)
 - Facturas que la API procesó: 11 de 11
