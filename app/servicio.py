@@ -2,7 +2,7 @@ import os
 import re
 from pathlib import Path
 
-from app.extractor import ExtraccionError, extraer
+from app.extractor import ExtraccionError, extraer, nombre_modelo
 from app.schemas import Factura, factura_desde_json
 
 RUTA_MOCK = Path("resultados/extracciones")
@@ -16,8 +16,12 @@ def modelo() -> str:
     return os.getenv("GEMINI_MODEL", "desconocido")
 
 
+def modelo_activo() -> str:
+    return nombre_modelo() if modo() == "real" else modelo()
+
+
 def etiqueta_modelo() -> str:
-    return modelo() if modo() == "real" else f"simulado:{modelo()}"
+    return nombre_modelo() if modo() == "real" else f"simulado:{modelo()}"
 
 
 def extraer_segun_modo(nombre_archivo: str, pdf_bytes: bytes) -> Factura:

@@ -102,6 +102,100 @@ async function cargarInfo() {
   }
 }
 
+/* ---------- Configuración de la IA ---------- */
+
+let configActual = null;
+
+const proveedorElegido = () => document.querySelector('input[name="proveedor"]:checked').value;
+const privacidadElegida = () => document.querySelector('input[name="privacidad"]:checked').value;
+
+function pintarModelos() {
+  const prov = proveedorElegido();
+  const lista = prov === "ollama" ? configActual.ollama_modelos : configActual.gemini_modelos;
+  const select = $("cfg-modelo");
+  select.replaceChildren();
+  lista.forEach((m) => {
+    const o = el("option", m);
+    o.value = m;
+    select.append(o);
+  });
+  if (configActual.proveedor === prov && lista.includes(configActual.modelo)) {
+    select.value = configActual.modelo;
+  }
+  let ayuda = "";
+  if (prov === "ollama" && !lista.length) {
+    ayuda = "No se encontró Ollama o no tiene modelos instalados. Abre Ollama e instala uno con 'ollama pull'.";
+  } else if (prov === "gemini" && !configActual.gemini_api_key) {
+    ayuda = "Falta GEMINI_API_KEY en el archivo .env.";
+  }
+  $("cfg-modelo-ayuda").textContent = ayuda;
+  actualizarPrivacidad();
+}
+
+function actualizarPrivacidad() {
+  const gemini = proveedorElegido() === "gemini";
+  const sin = gemini && privacidadElegida() === "sin_mascara";
+  $("cfg-privacidad").classList.toggle("d-none", !gemini);
+  $("cfg-aviso").classList.toggle("d-none", !sin);
+  if (!sin) $("cfg-acepto").checked = false;
+  validarConfig();
+}
+
+function validarConfig() {
+  const sin = proveedorElegido() === "gemini" && privacidadElegida() === "sin_mascara";
+  $("cfg-guardar").disabled = !$("cfg-modelo").value || (sin && !$("cfg-acepto").checked);
+}
+
+async function abrirConfig() {
+  try {
+    const r = await fetch("/config");
+    if (!r.ok) throw new Error("respuesta " + r.status);
+    configActual = await r.json();
+  } catch (e) {
+    toast("No se pudo cargar la configuración.", "danger");
+    return;
+  }
+  $("config-simulado").classList.toggle("d-none", configActual.modo === "real");
+  $(configActual.proveedor === "gemini" ? "prov-gemini" : "prov-ollama").checked = true;
+  $(configActual.privacidad === "sin_mascara" ? "priv-sin" : "priv-mascara").checked = true;
+  $("cfg-acepto").checked = false;
+  pintarModelos();
+  bootstrap.Modal.getOrCreateInstance($("config")).show();
+}
+
+async function guardarConfig() {
+  const cuerpo = {
+    proveedor: proveedorElegido(),
+    modelo: $("cfg-modelo").value,
+    privacidad: privacidadElegida(),
+    acepta_riesgo: $("cfg-acepto").checked,
+  };
+  try {
+    const r = await fetch("/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await r.json();
+    if (!r.ok) {
+      toast(typeof datos.detail === "string" ? datos.detail : "No se pudo guardar la configuración.", "danger");
+      return;
+    }
+    bootstrap.Modal.getOrCreateInstance($("config")).hide();
+    toast("Configuración guardada.", "success");
+    await cargarInfo();
+  } catch (e) {
+    toast("No se pudo conectar con el servidor.", "danger");
+  }
+}
+
+document.querySelectorAll('input[name="proveedor"]').forEach((i) => i.addEventListener("change", pintarModelos));
+document.querySelectorAll('input[name="privacidad"]').forEach((i) => i.addEventListener("change", actualizarPrivacidad));
+$("cfg-acepto").addEventListener("change", validarConfig);
+$("cfg-modelo").addEventListener("change", validarConfig);
+$("cfg-guardar").addEventListener("click", guardarConfig);
+$("btn-config").addEventListener("click", abrirConfig);
+
 /* ---------- Resumen y tabla ---------- */
 
 function actualizarResumen() {

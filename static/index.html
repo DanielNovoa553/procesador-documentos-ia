@@ -21,6 +21,9 @@
       </div>
       <div class="d-flex align-items-center gap-2">
         <span id="modo" class="modo-badge">…</span>
+        <button id="btn-config" class="btn btn-outline-secondary btn-sm" type="button" aria-label="Configurar IA">
+          <i class="bi bi-gear"></i>
+        </button>
         <button id="btn-tema" class="btn btn-outline-secondary btn-sm" type="button" aria-label="Cambiar tema">
           <i id="tema-icono" class="bi bi-moon-stars"></i>
         </button>
@@ -122,6 +125,71 @@
         </div>
         <div id="detalle-cuerpo" class="modal-body"></div>
         <div id="detalle-pie" class="modal-footer"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="config" tabindex="-1" aria-labelledby="config-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="config-titulo" class="modal-title h5 mb-0">Configuración de la IA</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div id="config-simulado" class="alert alert-info small d-none">
+            El servidor está en modo simulado (<code>EXTRACTOR_MODO=mock</code>): esta selección se aplica
+            solo cuando se use el modo real.
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">¿Dónde se procesa?</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="proveedor" id="prov-ollama" value="ollama">
+              <label class="form-check-label" for="prov-ollama">Local con Ollama <span class="text-secondary">(los datos no salen de tu equipo)</span></label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="proveedor" id="prov-gemini" value="gemini">
+              <label class="form-check-label" for="prov-gemini">Gemini <span class="text-secondary">(servicio de Google)</span></label>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="cfg-modelo">Modelo</label>
+            <select id="cfg-modelo" class="form-select"></select>
+            <div id="cfg-modelo-ayuda" class="form-text"></div>
+          </div>
+
+          <div id="cfg-privacidad" class="mb-3 d-none">
+            <label class="form-label fw-semibold">Privacidad</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="privacidad" id="priv-mascara" value="mascara">
+              <label class="form-check-label" for="priv-mascara">Con máscara <span class="text-secondary">(recomendado: se envía solo texto con datos personales reemplazados)</span></label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="privacidad" id="priv-sin" value="sin_mascara">
+              <label class="form-check-label" for="priv-sin">Sin privacidad <span class="text-secondary">(se envía el PDF completo)</span></label>
+            </div>
+          </div>
+
+          <div id="cfg-aviso" class="alert alert-warning d-none" role="alert">
+            <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Riesgos de enviar el PDF sin máscara</div>
+            <ul class="small mb-2 ps-3">
+              <li>El documento completo sale de tu equipo y se envía a Google: RFC, folio fiscal, nombres, direcciones, correos, teléfonos y montos.</li>
+              <li>Una vez enviado, no puedes retirarlo ni controlar cómo se conserva o se trata fuera de tu infraestructura.</li>
+              <li>Puede incumplir políticas internas o la normativa de protección de datos personales aplicable a tus clientes.</li>
+              <li>Alternativas más seguras: usar la máscara o procesar en local con Ollama.</li>
+            </ul>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="cfg-acepto">
+              <label class="form-check-label" for="cfg-acepto">Entiendo los riesgos y quiero enviar el PDF sin máscara.</label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" id="cfg-guardar" class="btn btn-primary">Guardar</button>
+        </div>
       </div>
     </div>
   </div>

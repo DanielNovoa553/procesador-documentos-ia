@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app import servicio
+from app import configuracion, servicio
 from app.db import Base, engine, get_db
 from app.extractor import ExtraccionError
 from app.models import Documento
@@ -56,7 +56,30 @@ def inicio():
 
 @app.get("/info")
 def info():
-    return {"modo": servicio.modo(), "modelo": servicio.modelo()}
+    return {"modo": servicio.modo(), "modelo": servicio.modelo_activo()}
+
+
+class ConfigIn(BaseModel):
+    proveedor: str
+    modelo: str
+    privacidad: str = "mascara"
+    acepta_riesgo: bool = False
+
+
+@app.get("/config")
+def leer_config():
+    return {"modo": servicio.modo(), **configuracion.estado()}
+
+
+@app.put("/config")
+def guardar_config(datos: ConfigIn):
+    try:
+        actual = configuracion.aplicar(
+            datos.proveedor, datos.modelo, datos.privacidad, datos.acepta_riesgo
+        )
+    except configuracion.ConfiguracionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"modo": servicio.modo(), **actual}
 
 
 @app.post("/documentos", response_model=DocumentoOut, status_code=201)

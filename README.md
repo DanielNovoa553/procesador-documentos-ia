@@ -1,20 +1,33 @@
 # Procesador inteligente de documentos
 
-API y aplicación web en Python que recibe **facturas en PDF**, extrae sus datos en formato estructurado con la **API de Gemini**, los **valida con reglas de negocio** y guarda el resultado en una base de datos. Los documentos con datos inconsistentes no se aceptan en silencio: quedan marcados para **revisión manual**, con el motivo.
+API y aplicación web en Python que recibe **facturas en PDF**, extrae sus datos en formato estructurado con un modelo de lenguaje —**local con Ollama** o en la nube con **Gemini**—, los **valida con reglas de negocio** y guarda el resultado en una base de datos. Los documentos con datos inconsistentes no se aceptan en silencio: quedan marcados para **revisión manual**, con el motivo.
 
-![Lista de documentos](docs/img/lista.png)
-
-> **Proyecto de portafolio.** Usa documentos sintéticos (inventados). No es un sistema listo para producción; las limitaciones están descritas más abajo.
+> **Proyecto de portafolio.** No es un sistema listo para producción; las limitaciones están descritas más abajo.
 
 ## Qué hace
 
 1. Subes una factura en PDF (por la página web o por la API).
-2. Gemini lee el documento y devuelve los datos con un esquema fijo (salida estructurada en JSON): emisor, receptor, folio fiscal, montos, conceptos y más.
+2. El modelo elegido lee el documento y devuelve los datos con un esquema fijo (JSON): emisor, receptor, folio fiscal, montos, conceptos y más.
 3. El sistema valida los datos con reglas propias (por ejemplo, que subtotal más IVA coincida con el total).
 4. Si todo cuadra, el documento queda **validado**. Si no, queda en **revisión manual** con el detalle de cada regla que falló.
 5. Consultas la lista, filtras por estado y abres el detalle de cada documento.
 
-![Detalle de un documento](docs/img/detalle.png)
+## Elegir dónde se procesa
+
+Desde el botón ⚙ de la página puedes cambiar, sin reiniciar el servidor:
+
+| Opción | Qué envía | Cuándo usarla |
+|---|---|---|
+| **Local con Ollama** | Nada sale de tu equipo. | Documentos con datos personales o confidenciales. |
+| **Gemini con máscara** (recomendada) | Solo el texto del PDF, con RFC, folio fiscal, correos, teléfonos y nombres o direcciones tras una etiqueta reemplazados por marcadores (`[RFC_1]`). Los valores reales se restauran localmente. | Cuando necesitas la calidad de Gemini y quieres reducir la exposición. |
+| **Gemini sin privacidad** | El **PDF completo**. | Solo con documentos no sensibles. La página muestra un aviso con los riesgos y exige aceptarlo antes de guardar. |
+
+Notas:
+
+- La máscara es una **reducción de exposición, no una anonimización**: solo cubre patrones conocidos y los términos de `PRIVACIDAD_TERMINOS`. Un nombre sin etiqueta puede quedar sin enmascarar. Si el texto final conserva algún patrón sensible, **no se envía nada** a Gemini y la extracción falla.
+- Con máscara u Ollama el PDF debe tener **texto seleccionable**; no se hace OCR de escaneos.
+- Los modelos pequeños de Ollama pueden omitir campos. Para la clave de producto o servicio, si el modelo la deja vacía y el texto trae una clave de 8 dígitos por concepto, se recupera directamente del texto.
+- La selección vive en el proceso del servidor: al reiniciar se vuelve a lo que diga `.env`.
 
 ## Por qué existe la validación
 
@@ -29,40 +42,43 @@ flowchart LR
     A --> D{Ya procesado?<br/>huella SHA-256}
     D -->|sí| R[Devuelve el resultado guardado]
     D -->|no| E[Extractor]
-    E -->|modo real| G[Gemini API]
+    E -->|local| O[Ollama]
+    E -->|nube| P1[Máscara de privacidad] --> G[Gemini API]
     E -->|modo simulado| M[Extracciones guardadas]
-    G --> V[Validador de reglas]
+    O --> V[Validador de reglas]
+    G --> V
     M --> V
-    V -->|validado / revisión manual| P[(PostgreSQL o SQLite)]
-    P --> A
+    V -->|validado / revisión manual| DB[(PostgreSQL o SQLite)]
+    DB --> A
 ```
 
 ## Stack
 
-Python · FastAPI · Pydantic · Gemini API (`google-genai`) · SQLAlchemy · PostgreSQL (Docker) o SQLite · Bootstrap 5 · Pytest
+Python · FastAPI · Pydantic · Ollama · Gemini API (`google-genai`) · pypdf · SQLAlchemy · PostgreSQL (Docker) o SQLite · Bootstrap 5 · Pytest
 
 ## Estructura del proyecto
 
 ```
 app/
-  api.py           endpoints de FastAPI
-  extractor.py     llamada a Gemini y manejo de errores
-  schemas.py       esquema de la factura (Pydantic)
-  validators.py    reglas de validación
-  servicio.py      modo real / modo simulado
-  models.py, db.py base de datos
-  comparacion.py   comparación de resultados para la evaluación
-static/            página web (index.html, styles.css, app.js)
-scripts/           generar facturas de prueba, evaluar, utilidades
-tests/             pruebas automáticas (22)
-data/facturas/     facturas de prueba sintéticas y sus respuestas correctas
-resultados/        reportes de evaluación y extracciones guardadas
-docker-compose.yml PostgreSQL local para desarrollo
+  api.py            endpoints de FastAPI
+  extractor.py      extracción con Gemini y con Ollama
+  privacidad.py     enmascarado de datos personales antes de enviar a Gemini
+  configuracion.py  cambio de proveedor, modelo y privacidad en caliente
+  schemas.py        esquema de la factura (Pydantic)
+  validators.py     reglas de validación
+  servicio.py       modo real / modo simulado
+  models.py, db.py  base de datos
+  comparacion.py    comparación de resultados para la evaluación
+static/             página web (index.html, styles.css, app.js)
+scripts/            generar facturas de prueba, evaluar y utilidades
+tests/              pruebas automáticas
+resultados/         reporte de evaluación y extracciones guardadas
+docker-compose.yml  PostgreSQL local para desarrollo
 ```
 
 ## Cómo ejecutarlo
 
-Requisitos: Python 3.10 o superior y Git. Docker es opcional.
+Requisitos: Python 3.10 o superior y Git. Docker y Ollama son opcionales.
 
 ```bash
 git clone https://github.com/TU_USUARIO/procesador-documentos-ia.git
@@ -74,29 +90,56 @@ Activa el entorno: `.venv\Scripts\Activate.ps1` en Windows (PowerShell) o `sourc
 
 ```bash
 python -m pip install -r requirements.txt
-cp .env.example .env        # en Windows: copy .env.example .env
 python -m uvicorn app.api:app --reload
 ```
 
-Abre <http://127.0.0.1:8000> para la página, o <http://127.0.0.1:8000/docs> para la documentación interactiva de la API.
+Crea un archivo `.env` en la raíz con las variables que necesites (ver tabla más abajo). Abre <http://127.0.0.1:8000> para la página, o <http://127.0.0.1:8000/docs> para la documentación interactiva de la API.
 
 ### Modo simulado (por defecto)
 
-Con `EXTRACTOR_MODO=mock` el programa **no llama a Gemini**: lee extracciones ya guardadas en `resultados/extracciones/<modelo>/`. Sirve para desarrollar y probar sin gastar cuota ni necesitar una clave. Solo funciona con las facturas de `data/facturas/` que tienen una extracción guardada (`factura_001`, `003`, `004`, `005`, `006`, `007`, `009`, `012`, `013`, `016` y `020`).
+Con `EXTRACTOR_MODO=mock` el programa **no llama a ningún modelo**: lee extracciones ya guardadas en `resultados/extracciones/<modelo>/`. Sirve para desarrollar sin gastar cuota ni necesitar una clave. Solo funciona con archivos cuyo nombre coincida con una extracción guardada.
 
-### Modo real
+### Modo real con Ollama (local)
 
-1. Genera una clave en Google AI Studio y ponla en tu archivo `.env` (nunca en el código).
-2. Cambia `EXTRACTOR_MODO=real` y reinicia el servidor.
-3. Sube un PDF: se envía a la API de Gemini.
+1. Instala [Ollama](https://ollama.com/download) y descarga un modelo, por ejemplo `ollama pull llama3.2:3b` (ligero) o `ollama pull llama3.1:8b` (más preciso, pero más lento).
+2. En `.env`:
+   ```dotenv
+   EXTRACTOR_MODO=real
+   LLM_PROVEEDOR=ollama
+   OLLAMA_MODEL=llama3.2:3b
+   OLLAMA_NUM_CTX=4096
+   ```
+3. Reinicia el servidor y sube un PDF. La primera respuesta puede tardar varios minutos en equipos sin GPU; el límite de espera es de 5 minutos.
+
+Si los modelos se descargan en una unidad con poco espacio, define `OLLAMA_MODELS` (variable de Windows para el programa Ollama, no para esta app) con otra carpeta y reinicia Ollama.
+
+### Modo real con Gemini
+
+1. Genera una clave en Google AI Studio y ponla en `.env` (nunca en el código).
+2. En `.env`:
+   ```dotenv
+   EXTRACTOR_MODO=real
+   LLM_PROVEEDOR=gemini
+   GEMINI_API_KEY=tu_clave
+   GEMINI_MODEL=gemini-3.8-flash
+   GEMINI_ENTRADA=mascara
+   ```
+3. Reinicia el servidor y sube un PDF.
 
 ### Variables de entorno
 
 | Variable | Descripción |
 |---|---|
-| `GEMINI_API_KEY` | Clave de la API de Gemini (solo en modo real). |
-| `GEMINI_MODEL` | Modelo a usar. Debe coincidir con la carpeta de `resultados/extracciones/` en modo simulado. |
 | `EXTRACTOR_MODO` | `mock` (por defecto) o `real`. |
+| `LLM_PROVEEDOR` | `gemini` (por defecto) u `ollama`. |
+| `GEMINI_API_KEY` | Clave de la API de Gemini. |
+| `GEMINI_MODEL` | Modelo de Gemini. En modo simulado debe coincidir con la carpeta de `resultados/extracciones/`. |
+| `GEMINI_MODELOS` | Opcional. Lista separada por comas de los modelos de Gemini que ofrece la página. |
+| `GEMINI_ENTRADA` | `pdf` (envía el PDF completo, por defecto), `texto` (envía el texto sin enmascarar) o `mascara` (envía el texto enmascarado). |
+| `PRIVACIDAD_TERMINOS` | Opcional. Términos adicionales a enmascarar, separados por `;`. |
+| `OLLAMA_MODEL` | Modelo de Ollama (por defecto `llama3.1:8b`). |
+| `OLLAMA_URL` | Dirección de Ollama (por defecto `http://127.0.0.1:11434`). |
+| `OLLAMA_NUM_CTX` | Tamaño de contexto de Ollama (por defecto `8192`). |
 | `DATABASE_URL` | Opcional. Si no se define, usa SQLite (`documentos.db`). |
 
 ### PostgreSQL con Docker (opcional)
@@ -105,13 +148,13 @@ Con `EXTRACTOR_MODO=mock` el programa **no llama a Gemini**: lee extracciones ya
 docker compose up -d
 ```
 
-y en `.env`:
+y en `.env`, con la cadena de conexión que corresponda a `docker-compose.yml`:
 
 ```
-DATABASE_URL=postgresql+psycopg://docs:docs@127.0.0.1:5433/documentos
+DATABASE_URL=postgresql+psycopg://USUARIO:CLAVE@127.0.0.1:5433/documentos
 ```
 
-Las credenciales `docs/docs` son solo para desarrollo local; el contenedor escucha únicamente en `127.0.0.1`.
+Las credenciales de `docker-compose.yml` son solo para desarrollo local; el contenedor escucha únicamente en `127.0.0.1`.
 
 ## Qué se extrae
 
@@ -146,15 +189,18 @@ Las diferencias de centavos se toleran. Una factura sin IVA (por ejemplo, honora
 | `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `limite`, `desplazamiento`. |
 | `GET` | `/documentos/{id}` | Detalle de un documento. |
 | `DELETE` | `/documentos/{id}` | Elimina un documento. |
+| `POST` | `/documentos/{id}/revalidar` | Vuelve a aplicar las reglas de validación a los datos guardados. |
 | `GET` | `/info` | Modo y modelo en uso. |
+| `GET` | `/config` | Proveedor, modelo y privacidad actuales, con los modelos disponibles. |
+| `PUT` | `/config` | Cambia proveedor, modelo y privacidad. Enviar el PDF completo a Gemini exige `acepta_riesgo: true`. |
 
-Errores: `400` si el archivo no es un PDF, `413` si supera el tamaño, `502` si falla la extracción y `422` si el filtro de estado no es válido.
+Errores: `400` si el archivo no es un PDF o la configuración no es válida, `413` si supera el tamaño, `502` si falla la extracción y `422` si el filtro de estado no es válido.
 
 ## Evaluación
 
-Se midió con las facturas sintéticas de `data/facturas/`, generadas con `scripts/generar_facturas.py`: tres diseños, tres formatos de fecha y de uno a cinco conceptos. Cada una tiene un archivo con la respuesta correcta.
+Se midió con facturas sintéticas generadas con `scripts/generar_facturas.py`: tres diseños, tres formatos de fecha y de uno a cinco conceptos. Cada una tiene un archivo con la respuesta correcta. Los PDF generados no se incluyen en el repositorio.
 
-**Resultado (27 de octubre de 2026, modelo `gemini-3.8-flash`):**
+**Resultado con Gemini (27 de octubre de 2026, modelo `gemini-3.8-flash`):**
 
 | Medición | Resultado |
 |---|---|
@@ -163,13 +209,13 @@ Se midió con las facturas sintéticas de `data/facturas/`, generadas con `scrip
 | Errores intencionales detectados con el motivo correcto | 4 de 4 |
 | Falsos positivos (facturas correctas enviadas a revisión) | 0 |
 
-Los errores intencionales son: total mal sumado, RFC inválido, conceptos que no suman el subtotal y fecha futura.
+Los errores intencionales son: total mal sumado, RFC inválido, conceptos que no suman el subtotal y fecha futura. El reporte está en `resultados/`.
 
 **Cómo leer este resultado:**
 
 - Es una **muestra pequeña de documentos limpios** generados por código. No demuestra que funcione con escaneos, fotos o facturas reales de formato libre.
-- La evaluación corresponde a los campos principales (emisor, RFC, fecha, montos y conceptos). Los campos adicionales del CFDI y el prompt ampliado **no se han evaluado de forma sistemática**; se probaron a mano con un CFDI real, que no se incluye en el repositorio.
-- Para reproducirla hace falta una clave de Gemini: `python scripts/evaluar.py`. El script guarda cada extracción, así que puede reanudarse, y se detiene al alcanzar el límite de cuota.
+- **No se ha evaluado de forma sistemática** el modo con Ollama, el enmascarado ni los campos adicionales del CFDI; se probaron a mano con un CFDI real, que no se incluye en el repositorio.
+- Para reproducirla hace falta una clave de Gemini y las facturas generadas: `python scripts/generar_facturas.py` y luego `python scripts/evaluar.py`.
 
 ## Pruebas automáticas
 
@@ -177,37 +223,35 @@ Los errores intencionales son: total mal sumado, RFC inválido, conceptos que no
 python -m pytest -v
 ```
 
-22 pruebas: reglas de validación y endpoints de la API. No usan Gemini ni internet; la API se prueba con una base de datos temporal y una extracción simulada.
+Cubren las reglas de validación, el enmascarado de privacidad, el extractor con Gemini y los endpoints de la API y de configuración. No usan Gemini, Ollama ni internet: la API se prueba con una base de datos temporal y clientes simulados.
 
 ## Decisiones de diseño
 
-- **Salida estructurada con esquema:** Gemini responde con la estructura de `schemas.py`, y la respuesta se vuelve a validar con Pydantic.
+- **Salida estructurada con esquema:** el modelo responde con la estructura de `schemas.py`, y la respuesta se vuelve a validar con Pydantic.
 - **Transcribir, no corregir:** el prompt prohíbe calcular o completar datos; la coherencia la verifica el código.
 - **Nulos permitidos:** si un dato no aparece, el modelo devuelve vacío en lugar de inventarlo.
-- **Deduplicación por huella SHA-256:** subir el mismo PDF dos veces devuelve el resultado guardado sin volver a llamar a Gemini.
+- **Deduplicación por huella SHA-256:** subir el mismo PDF dos veces devuelve el resultado guardado sin volver a llamar al modelo.
+- **Privacidad que falla en seguro:** si tras enmascarar queda algún dato sensible, no se envía nada a Gemini.
 - **Modo simulado por defecto:** evita gastar cuota por accidente.
 - **Datos como JSON:** la factura extraída se guarda en una columna JSON. Es práctico en un MVP porque tolera cambios de esquema; en un sistema real los campos de búsqueda (emisor, fecha, total, folio fiscal) serían columnas, con los conceptos en su propia tabla.
 - **Seguridad básica:** la página inserta el texto del PDF con `textContent` (nunca como HTML), la API limita el tamaño y comprueba que el archivo sea un PDF, y las claves viven solo en `.env`.
 
 ## Limitaciones
 
-- **Datos sintéticos.** No se ha evaluado con documentos reales ni escaneados.
+- **Sin evaluación con documentos reales ni escaneados.** El modo local no hace OCR.
+- **Calidad del modelo local:** los modelos pequeños de Ollama son más lentos en equipos sin GPU y pueden cometer errores (por ejemplo, confundir cantidad y valor unitario). Las reglas de validación no detectan todos los casos.
 - **IVA:** solo se valida la tasa del 16 %. No hay manejo de otras tasas ni de retenciones.
 - **Moneda:** la interfaz muestra los importes con formato de pesos mexicanos aunque la factura venga en otra moneda.
-- **Sin autenticación ni permisos.** Pensado para ejecutarse en local.
+- **Sin autenticación ni permisos.** Pensado para ejecutarse en local; en particular, `PUT /config` no debe exponerse en una red.
 - **La revisión manual solo marca:** todavía no se pueden aprobar ni corregir documentos desde la interfaz.
-- **Privacidad:** en modo real el PDF se envía a un servicio externo. En el plan gratuito de Gemini, Google puede usar los datos enviados para mejorar sus productos (revisa los términos vigentes). No subas documentos reales o confidenciales.
-- **Cuota:** el plan gratuito limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
+- **Privacidad con Gemini:** el modo sin máscara envía el PDF completo, y la máscara no es infalible. En el plan gratuito, Google puede usar los datos enviados para mejorar sus productos (revisa los términos vigentes). No subas documentos reales o confidenciales a Gemini; usa Ollama.
+- **Cuota:** el plan gratuito de Gemini limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
 - **CFDI:** para facturas electrónicas mexicanas, el archivo XML contiene los datos de forma estructurada y es más confiable que leer el PDF. Este proyecto está pensado para documentos sin formato estructurado.
 
 ## Próximos pasos
 
 - Flujo de revisión manual: aprobar, corregir y rechazar, con bitácora de cambios.
-- Procesamiento asíncrono en AWS (S3, SQS, Lambda y DynamoDB, con CDK).
+- Guardar la configuración elegida en la página para que sobreviva a reinicios.
 - Columnas reales para los campos de búsqueda y tabla de conceptos.
-- Evaluación con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
+- Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
 - Otros tipos de documento.
-
-## Datos de prueba
-
-Todas las facturas de `data/facturas/` son ficticias, y cada PDF lo indica al pie. Los RFC, nombres y montos son inventados y no tienen validez fiscal. Las fechas se calculan a partir del día en que se ejecuta el generador, por lo que al regenerarlas cambian.
