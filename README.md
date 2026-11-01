@@ -10,7 +10,8 @@ API y aplicación web en Python que recibe **facturas en PDF**, extrae sus datos
 2. El modelo elegido lee el documento y devuelve los datos con un esquema fijo (JSON): emisor, receptor, folio fiscal, montos, conceptos y más.
 3. El sistema valida los datos con reglas propias (por ejemplo, que subtotal más IVA coincida con el total).
 4. Si todo cuadra, el documento queda **validado**. Si no, queda en **revisión manual** con el detalle de cada regla que falló.
-5. Consultas la lista, filtras por estado y abres el detalle de cada documento.
+5. Desde el detalle puedes **aprobar**, **corregir los datos extraídos** o **rechazar** el documento. Las correcciones vuelven a ejecutar las reglas de validación.
+6. La bitácora registra cada acción, revisor, comentario y el estado y datos antes y después del cambio.
 
 ## Elegir dónde se procesa
 
@@ -188,6 +189,10 @@ Las diferencias de centavos se toleran. Una factura sin IVA (por ejemplo, honora
 | `POST` | `/documentos` | Sube un PDF (máximo 5 MB). Devuelve `201` si es nuevo y `200` si ya estaba procesado. |
 | `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `limite`, `desplazamiento`. |
 | `GET` | `/documentos/{id}` | Detalle de un documento. |
+| `POST` | `/documentos/{id}/aprobar` | Aprueba manualmente. Acepta `revisor` y `comentario` opcionales. |
+| `PUT` | `/documentos/{id}/corregir` | Corrige `datos` (JSON de factura), vuelve a validar y registra el cambio. |
+| `POST` | `/documentos/{id}/rechazar` | Rechaza; requiere `motivo` y acepta `revisor`. |
+| `GET` | `/documentos/{id}/bitacora` | Historial de revisiones con snapshots de datos y estado. |
 | `DELETE` | `/documentos/{id}` | Elimina un documento. |
 | `POST` | `/documentos/{id}/revalidar` | Vuelve a aplicar las reglas de validación a los datos guardados. |
 | `GET` | `/info` | Modo y modelo en uso. |
@@ -242,15 +247,13 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Calidad del modelo local:** los modelos pequeños de Ollama son más lentos en equipos sin GPU y pueden cometer errores (por ejemplo, confundir cantidad y valor unitario). Las reglas de validación no detectan todos los casos.
 - **IVA:** solo se valida la tasa del 16 %. No hay manejo de otras tasas ni de retenciones.
 - **Moneda:** la interfaz muestra los importes con formato de pesos mexicanos aunque la factura venga en otra moneda.
-- **Sin autenticación ni permisos.** Pensado para ejecutarse en local; en particular, `PUT /config` no debe exponerse en una red.
-- **La revisión manual solo marca:** todavía no se pueden aprobar ni corregir documentos desde la interfaz.
+- **Sin autenticación ni permisos.** Pensado para ejecutarse en local; `PUT /config`, los endpoints de revisión y la bitácora no verifican identidad. El campo `revisor` es informativo y no debe considerarse una firma o atribución confiable.
 - **Privacidad con Gemini:** el modo sin máscara envía el PDF completo, y la máscara no es infalible. En el plan gratuito, Google puede usar los datos enviados para mejorar sus productos (revisa los términos vigentes). No subas documentos reales o confidenciales a Gemini; usa Ollama.
 - **Cuota:** el plan gratuito de Gemini limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
 - **CFDI:** para facturas electrónicas mexicanas, el archivo XML contiene los datos de forma estructurada y es más confiable que leer el PDF. Este proyecto está pensado para documentos sin formato estructurado.
 
 ## Próximos pasos
 
-- Flujo de revisión manual: aprobar, corregir y rechazar, con bitácora de cambios.
 - Guardar la configuración elegida en la página para que sobreviva a reinicios.
 - Columnas reales para los campos de búsqueda y tabla de conceptos.
 - Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
