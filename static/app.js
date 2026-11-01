@@ -134,6 +134,10 @@ function pintarModelos() {
     ayuda = "No se encontró Ollama o no tiene modelos instalados. Abre Ollama e instala uno con 'ollama pull'.";
   } else if (prov === "gemini" && !configActual.gemini_api_key) {
     ayuda = "Falta GEMINI_API_KEY en el archivo .env.";
+  } else if (prov === "gemini" && configActual.gemini_modelos_aviso) {
+    ayuda = configActual.gemini_modelos_aviso;
+  } else if (prov === "gemini") {
+    ayuda = "Modelos compatibles con generación de contenido disponibles en Gemini (máximo 10).";
   }
   $("cfg-modelo-ayuda").textContent = ayuda;
   actualizarPrivacidad();

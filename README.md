@@ -135,7 +135,7 @@ Si los modelos se descargan en una unidad con poco espacio, define `OLLAMA_MODEL
 | `LLM_PROVEEDOR` | `gemini` (por defecto) u `ollama`. |
 | `GEMINI_API_KEY` | Clave de la API de Gemini. |
 | `GEMINI_MODEL` | Modelo de Gemini. En modo simulado debe coincidir con la carpeta de `resultados/extracciones/`. |
-| `GEMINI_MODELOS` | Opcional. Lista separada por comas de los modelos de Gemini que ofrece la página. |
+| `GEMINI_MODELOS` | Opcional. Lista separada por comas de respaldo si no se puede consultar la API de Gemini. Cuando la API responde, la página muestra hasta 10 modelos compatibles con `generateContent`. |
 | `GEMINI_ENTRADA` | `pdf` (envía el PDF completo, por defecto), `texto` (envía el texto sin enmascarar) o `mascara` (envía el texto enmascarado). |
 | `PRIVACIDAD_TERMINOS` | Opcional. Términos adicionales a enmascarar, separados por `;`. |
 | `OLLAMA_MODEL` | Modelo de Ollama (por defecto `llama3.1:8b`). |
