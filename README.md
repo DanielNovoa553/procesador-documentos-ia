@@ -223,6 +223,29 @@ Los errores intencionales son: total mal sumado, RFC inválido, conceptos que no
 - **No se ha evaluado de forma sistemática** el modo con Ollama, el enmascarado ni los campos adicionales del CFDI; se probaron a mano con un CFDI real, que no se incluye en el repositorio.
 - Para reproducirla hace falta una clave de Gemini y las facturas generadas: `python scripts/generar_facturas.py` y luego `python scripts/evaluar.py`.
 
+### Casos difíciles: modo local y Gemini con máscara
+
+Hay un conjunto separado de facturas sintéticas para probar una factura escaneada, una página rotada, una factura sin RFC y otra con IVA de 0 %. No se incluyen otros tipos de documento. Los archivos se generan localmente:
+
+```bash
+python scripts/generar_facturas_dificiles.py
+```
+
+Ejecuta cada perfil por separado. Ollama debe estar activo y tener instalado el modelo elegido; para Gemini configura `GEMINI_API_KEY`:
+
+```bash
+python scripts/evaluar_facturas_dificiles.py --proveedor ollama --modelo llama3.2:3b
+python scripts/evaluar_facturas_dificiles.py --proveedor gemini --modelo gemini-3.8-flash
+```
+
+Gemini se ejecuta siempre con `GEMINI_ENTRADA=mascara`; las claves de API no se imprimen ni se guardan en los resultados. El runner compara los campos con el manifiesto esperado, vuelve a aplicar las reglas de validación y guarda las respuestas en caché por proveedor/modelo para repetir el análisis sin llamar de nuevo al modelo:
+
+```bash
+python scripts/evaluar_facturas_dificiles.py --proveedor ollama --modelo llama3.2:3b --cache
+```
+
+Cada ejecución crea un reporte bajo `resultados/evaluacion_dificiles_<proveedor>-<modelo>-<entrada>.md`. En la factura escaneada, el resultado esperado es el error de “no contiene texto extraíble”: el proyecto aún no incorpora OCR, por lo que reconocer esa limitación no significa que haya extraído la factura. Los reportes son mediciones sobre datos sintéticos; no sustituyen pruebas con documentos reales.
+
 ## Pruebas automáticas
 
 ```bash
@@ -245,7 +268,6 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 
 ## Limitaciones
 
-- **Sin evaluación con documentos reales ni escaneados.** El modo local no hace OCR.
 - **Calidad del modelo local:** los modelos pequeños de Ollama son más lentos en equipos sin GPU y pueden cometer errores (por ejemplo, confundir cantidad y valor unitario). Las reglas de validación no detectan todos los casos.
 - **IVA:** solo se valida la tasa del 16 %. No hay manejo de otras tasas ni de retenciones.
 - **Moneda:** la interfaz muestra los importes con formato de pesos mexicanos aunque la factura venga en otra moneda.
@@ -254,7 +276,3 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Cuota:** el plan gratuito de Gemini limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
 - **CFDI:** para facturas electrónicas mexicanas, el archivo XML contiene los datos de forma estructurada y es más confiable que leer el PDF. Este proyecto está pensado para documentos sin formato estructurado.
 
-## Próximos pasos
-
-- Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
-- Otros tipos de documento.

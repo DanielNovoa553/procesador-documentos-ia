@@ -1,0 +1,90 @@
+[
+  {
+    "escenario": "factura_escaneada",
+    "archivo": "factura_escaneada.pdf",
+    "datos_esperados": {
+      "emisor": "Servicios Prueba Norte S.A. de C.V.",
+      "rfc_emisor": "SPN010203AB1",
+      "fecha": "2026-10-21",
+      "subtotal": 1000.0,
+      "iva": 160.0,
+      "total": 1160.0,
+      "conceptos": [
+        {
+          "descripcion": "Servicio de mantenimiento",
+          "cantidad": 1,
+          "importe": 1000.0
+        }
+      ]
+    },
+    "estado_esperado": "validado",
+    "motivo_esperado": null,
+    "error_extraccion_esperado": "no contiene texto extraíble"
+  },
+  {
+    "escenario": "factura_rotada",
+    "archivo": "factura_rotada.pdf",
+    "datos_esperados": {
+      "emisor": "Servicios Prueba Norte S.A. de C.V.",
+      "rfc_emisor": "SPN010203AB1",
+      "fecha": "2026-10-21",
+      "subtotal": 1000.0,
+      "iva": 160.0,
+      "total": 1160.0,
+      "conceptos": [
+        {
+          "descripcion": "Servicio de mantenimiento",
+          "cantidad": 1,
+          "importe": 1000.0
+        }
+      ]
+    },
+    "estado_esperado": "validado",
+    "motivo_esperado": null,
+    "error_extraccion_esperado": null
+  },
+  {
+    "escenario": "factura_sin_rfc",
+    "archivo": "factura_sin_rfc.pdf",
+    "datos_esperados": {
+      "emisor": "Servicios Prueba Norte S.A. de C.V.",
+      "rfc_emisor": null,
+      "fecha": "2026-10-21",
+      "subtotal": 1000.0,
+      "iva": 160.0,
+      "total": 1160.0,
+      "conceptos": [
+        {
+          "descripcion": "Servicio de mantenimiento",
+          "cantidad": 1,
+          "importe": 1000.0
+        }
+      ]
+    },
+    "estado_esperado": "revision_manual",
+    "motivo_esperado": "campo_faltante",
+    "error_extraccion_esperado": null
+  },
+  {
+    "escenario": "factura_iva_0",
+    "archivo": "factura_iva_0.pdf",
+    "datos_esperados": {
+      "emisor": "Servicios Prueba Norte S.A. de C.V.",
+      "rfc_emisor": "SPN010203AB1",
+      "fecha": "2026-10-21",
+      "subtotal": 1000.0,
+      "iva": 0.0,
+      "total": 1000.0,
+      "conceptos": [
+        {
+          "descripcion": "Servicio de mantenimiento",
+          "cantidad": 1,
+          "importe": 1000.0
+        }
+      ]
+    },
+    "estado_esperado": "validado",
+    "motivo_esperado": null,
+    "error_extraccion_esperado": null
+  }
+]
