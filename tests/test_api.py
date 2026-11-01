@@ -99,6 +99,59 @@ def test_listar_y_filtrar_por_estado(client, monkeypatch):
     assert client.get("/documentos?estado=otro").status_code == 422
 
 
+def test_busqueda_usa_columnas_y_conceptos_normalizados(client, monkeypatch):
+    datos_factura = factura(
+        emisor="Distribuidora Aurora",
+        rfc_emisor="DAU010203AB1",
+        folio="FAC-2026-77",
+        folio_fiscal="41F38E36-A5CB-4A0E-AEAC-D944605CCAF5",
+        conceptos=[
+            nuevo_concepto(
+                descripcion="Servicio de instalación",
+                cantidad=1,
+                importe=1000.0,
+            )
+        ],
+    )
+    monkeypatch.setattr(servicio, "extraer_segun_modo", lambda n, c: datos_factura)
+    documento = subir(client).json()
+
+    for termino in (
+        "aurora",
+        "DAU010203AB1",
+        "FAC-2026-77",
+        "41F38E36-A5CB",
+        "instalación",
+        "1160.0",
+    ):
+        resultados = client.get("/documentos", params={"busqueda": termino}).json()
+        assert [resultado["id"] for resultado in resultados] == [documento["id"]]
+    assert client.get("/documentos", params={"busqueda": "no existe"}).json() == []
+
+
+def test_correccion_sincroniza_columnas_y_conceptos_para_busqueda(client, monkeypatch):
+    monkeypatch.setattr(servicio, "extraer_segun_modo", lambda n, c: factura(total=9999.0))
+    documento = subir(client, PDF + b"sincronizacion").json()
+    datos_corregidos = factura(
+        conceptos=[
+            nuevo_concepto(
+                descripcion="Soporte técnico anual",
+                cantidad=1,
+                importe=1000.0,
+            )
+        ]
+    ).model_dump()
+
+    r = client.put(
+        f"/documentos/{documento['id']}/corregir",
+        json={"datos": datos_corregidos},
+    )
+
+    assert r.status_code == 200
+    assert client.get("/documentos", params={"busqueda": "Soporte técnico"}).json()[0]["id"] == documento["id"]
+    assert client.get("/documentos", params={"busqueda": "Licencia"}).json() == []
+
+
 def test_detalle_y_documento_inexistente(client):
     creado = subir(client).json()
     assert client.get(f"/documentos/{creado['id']}").status_code == 200
@@ -110,3 +163,113 @@ def test_eliminar_documento(client):
     assert client.delete(f"/documentos/{creado['id']}").status_code == 204
     assert client.get(f"/documentos/{creado['id']}").status_code == 404
     assert client.delete("/documentos/9999").status_code == 404
+
+
+def test_aprobar_documento_registra_bitacora(client):
+    documento = subir(client).json()
+
+    r = client.post(
+        f"/documentos/{documento['id']}/aprobar",
+        json={"revisor": "Ana", "comentario": "Verificado contra el PDF"},
+    )
+
+    assert r.status_code == 200
+    assert r.json()["estado"] == "aprobado"
+    bitacora = client.get(f"/documentos/{documento['id']}/bitacora").json()
+    assert len(bitacora) == 1
+    assert bitacora[0]["accion"] == "aprobar"
+    assert bitacora[0]["revisor"] == "Ana"
+    assert bitacora[0]["comentario"] == "Verificado contra el PDF"
+    assert bitacora[0]["estado_anterior"] == "validado"
+    assert bitacora[0]["estado_nuevo"] == "aprobado"
+    assert bitacora[0]["datos_anteriores"] == bitacora[0]["datos_nuevos"]
+
+
+def test_corregir_documento_actualiza_datos_y_motivos(client, monkeypatch):
+    monkeypatch.setattr(servicio, "extraer_segun_modo", lambda n, c: factura(total=9999.0))
+    documento = subir(client, PDF + b"corregir").json()
+    datos_corregidos = factura().model_dump()
+
+    r = client.put(
+        f"/documentos/{documento['id']}/corregir",
+        json={
+            "revisor": "Luis",
+            "comentario": "Se corrigió el total",
+            "datos": datos_corregidos,
+        },
+    )
+
+    assert r.status_code == 200
+    assert r.json()["estado"] == "corregido"
+    assert r.json()["datos"]["total"] == 1160.0
+    assert r.json()["motivos"] == []
+    bitacora = client.get(f"/documentos/{documento['id']}/bitacora").json()[0]
+    assert bitacora["accion"] == "corregir"
+    assert bitacora["estado_anterior"] == "revision_manual"
+    assert bitacora["datos_anteriores"]["total"] == 9999.0
+    assert bitacora["datos_nuevos"]["total"] == 1160.0
+
+
+def test_correccion_invalida_sigue_en_revision_y_rechazo_exige_motivo(client):
+    documento = subir(client).json()
+    datos_corregidos = factura(total=9999.0).model_dump()
+    corregido = client.put(
+        f"/documentos/{documento['id']}/corregir",
+        json={"datos": datos_corregidos},
+    )
+
+    assert corregido.status_code == 200
+    assert corregido.json()["estado"] == "revision_manual"
+    assert corregido.json()["motivos"][0]["codigo"] == "total_no_coincide"
+    assert client.post(f"/documentos/{documento['id']}/rechazar", json={}).status_code == 422
+
+
+def test_rechazar_documento_registra_motivo(client):
+    documento = subir(client).json()
+    r = client.post(
+        f"/documentos/{documento['id']}/rechazar",
+        json={"revisor": "Ana", "motivo": "El emisor no corresponde"},
+    )
+
+    assert r.status_code == 200
+    assert r.json()["estado"] == "rechazado"
+    cambio = client.get(f"/documentos/{documento['id']}/bitacora").json()[0]
+    assert cambio["accion"] == "rechazar"
+    assert cambio["comentario"] == "El emisor no corresponde"
+
+
+def test_filtro_acepta_estados_de_revision(client):
+    documento = subir(client).json()
+    client.post(f"/documentos/{documento['id']}/aprobar", json={})
+
+    assert len(client.get("/documentos?estado=aprobado").json()) == 1
+    assert client.get("/documentos?estado=corregido").json() == []
+    assert client.get("/documentos?estado=revision_desconocida").status_code == 422
+
+
+def test_revalidar_tambien_registra_cambio_en_bitacora(client):
+    documento = subir(client).json()
+    client.post(f"/documentos/{documento['id']}/aprobar", json={})
+
+    r = client.post(f"/documentos/{documento['id']}/revalidar")
+
+    assert r.status_code == 200
+    assert r.json()["estado"] == "validado"
+    bitacora = client.get(f"/documentos/{documento['id']}/bitacora").json()
+    assert [cambio["accion"] for cambio in bitacora] == ["revalidar", "aprobar"]
+    assert bitacora[0]["estado_anterior"] == "aprobado"
+
+
+def test_corregir_rechaza_datos_que_no_cumplen_el_esquema(client):
+    documento = subir(client).json()
+    r = client.put(
+        f"/documentos/{documento['id']}/corregir",
+        json={"datos": {"emisor": "Sin conceptos"}},
+    )
+
+    assert r.status_code == 422
+    assert client.get(f"/documentos/{documento['id']}").json()["estado"] == "validado"
+
+
+def test_bitacora_de_documento_inexistente(client):
+    assert client.get("/documentos/9999/bitacora").status_code == 404

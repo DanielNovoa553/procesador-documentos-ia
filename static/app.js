@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 let documentos = [];
+let documentosMostrados = [];
 let archivoSeleccionado = null;
 
 function el(tag, texto, clase) {
@@ -26,10 +27,17 @@ function formatearFecha(f) {
 }
 
 function insignia(estado) {
-  const ok = estado === "validado";
-  const span = el("span", null, "estado " + (ok ? "estado-ok" : "estado-rev"));
-  span.append(el("i", null, "bi " + (ok ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill")));
-  span.append(document.createTextNode(ok ? "Validado" : "En revisión"));
+  const etiquetas = {
+    validado: ["Validado", "estado-ok", "bi-check-circle-fill"],
+    aprobado: ["Aprobado", "estado-ok", "bi-check-circle-fill"],
+    corregido: ["Corregido", "estado-ok", "bi-pencil-square"],
+    revision_manual: ["En revisión", "estado-rev", "bi-exclamation-triangle-fill"],
+    rechazado: ["Rechazado", "estado-rechazado", "bi-x-circle-fill"],
+  };
+  const [texto, clase, icono] = etiquetas[estado] || etiquetas.revision_manual;
+  const span = el("span", null, "estado " + clase);
+  span.append(el("i", null, "bi " + icono));
+  span.append(document.createTextNode(texto));
   return span;
 }
 
@@ -127,6 +135,10 @@ function pintarModelos() {
     ayuda = "No se encontró Ollama o no tiene modelos instalados. Abre Ollama e instala uno con 'ollama pull'.";
   } else if (prov === "gemini" && !configActual.gemini_api_key) {
     ayuda = "Falta GEMINI_API_KEY en el archivo .env.";
+  } else if (prov === "gemini" && configActual.gemini_modelos_aviso) {
+    ayuda = configActual.gemini_modelos_aviso;
+  } else if (prov === "gemini") {
+    ayuda = "Modelos compatibles con generación de contenido disponibles en Gemini (máximo 10).";
   }
   $("cfg-modelo-ayuda").textContent = ayuda;
   actualizarPrivacidad();
@@ -200,8 +212,9 @@ $("btn-config").addEventListener("click", abrirConfig);
 
 function actualizarResumen() {
   const total = documentos.length;
-  const validados = documentos.filter((d) => d.estado === "validado").length;
-  const revision = total - validados;
+  const aceptados = new Set(["validado", "aprobado", "corregido"]);
+  const validados = documentos.filter((d) => aceptados.has(d.estado)).length;
+  const revision = documentos.filter((d) => d.estado === "revision_manual").length;
   $("kpi-total").textContent = total;
   $("kpi-validados").textContent = validados;
   $("kpi-revision").textContent = revision;
@@ -210,12 +223,9 @@ function actualizarResumen() {
 
 function filtrados() {
   const estado = $("filtro").value;
-  const texto = $("buscar").value.trim().toLowerCase();
-  return documentos.filter((d) => {
+  return documentosMostrados.filter((d) => {
     if (estado && d.estado !== estado) return false;
-    if (!texto) return true;
-    const emisor = String(d.datos.emisor || "").toLowerCase();
-    return d.archivo.toLowerCase().includes(texto) || emisor.includes(texto);
+    return true;
   });
 }
 
@@ -231,7 +241,7 @@ function pintarTabla() {
     td.append(el("i", null, "bi bi-inbox"));
     td.append(
       document.createTextNode(
-        documentos.length === 0
+        documentos.length === 0 && !$("buscar").value.trim()
           ? "Aún no hay documentos. Sube una factura en PDF para empezar."
           : "Ningún documento coincide con la búsqueda."
       )
@@ -258,18 +268,34 @@ function pintarTabla() {
     tbody.append(tr);
   }
 
-  $("contador").textContent =
-    documentos.length === 0 ? "" : "Mostrando " + lista.length + " de " + documentos.length + " documentos";
+  $("contador").textContent = documentos.length === 0
+    ? ""
+    : $("buscar").value.trim()
+      ? "Resultados mostrados: " + lista.length
+      : "Mostrando " + lista.length + " de " + documentos.length + " documentos";
 }
 
 async function cargarLista() {
   try {
-    const r = await fetch("/documentos?limite=200");
+    const parametros = new URLSearchParams({ limite: "200" });
+    const busqueda = $("buscar").value.trim();
+    if (busqueda) parametros.set("busqueda", busqueda);
+    const r = await fetch("/documentos?" + parametros.toString());
     if (!r.ok) throw new Error("respuesta " + r.status);
-    documentos = await r.json();
+    const encontrados = await r.json();
+    if (busqueda) {
+      const resumen = await fetch("/documentos?limite=200");
+      if (!resumen.ok) throw new Error("respuesta " + resumen.status);
+      documentos = await resumen.json();
+      documentosMostrados = encontrados;
+    } else {
+      documentos = encontrados;
+      documentosMostrados = encontrados;
+    }
   } catch (e) {
     toast("No se pudo cargar la lista de documentos.", "danger");
     documentos = [];
+    documentosMostrados = [];
   }
   actualizarResumen();
   pintarTabla();
@@ -318,7 +344,11 @@ function abrirDetalle(d) {
 
   if (d.motivos.length > 0) {
     const aviso = el("div", null, "aviso-revision");
-    aviso.append(el("div", "Requiere revisión manual", "fw-semibold"));
+    aviso.append(el(
+      "div",
+      d.estado === "revision_manual" ? "Requiere revisión manual" : "Alertas de validación",
+      "fw-semibold"
+    ));
     const lista = el("ul");
     for (const m of d.motivos) lista.append(el("li", m.detalle));
     aviso.append(lista);
@@ -412,6 +442,103 @@ function abrirDetalle(d) {
   inferior.append(secConceptos, secImportes);
   cuerpo.append(inferior);
 
+  const revision = el("section", null, "panel mt-3");
+  revision.append(el("h3", "Revisión manual", "panel-titulo"));
+  const etiquetaRevisor = el("label", "Revisor", "form-label small fw-semibold");
+  etiquetaRevisor.htmlFor = "revisor-" + d.id;
+  revision.append(etiquetaRevisor);
+  const revisor = el("input", null, "form-control form-control-sm mb-2");
+  revisor.id = "revisor-" + d.id;
+  revisor.type = "text";
+  revisor.maxLength = 100;
+  revisor.placeholder = "Nombre del revisor (opcional)";
+  revision.append(revisor);
+  const etiquetaComentario = el("label", "Comentario o motivo de rechazo", "form-label small fw-semibold");
+  etiquetaComentario.htmlFor = "comentario-" + d.id;
+  revision.append(etiquetaComentario);
+  const comentario = el("textarea", null, "form-control form-control-sm mb-2");
+  comentario.id = "comentario-" + d.id;
+  comentario.rows = 2;
+  comentario.maxLength = 1000;
+  comentario.placeholder = "Comentario (obligatorio para rechazar)";
+  revision.append(comentario);
+
+  const acciones = el("div", null, "d-flex flex-wrap gap-2");
+  const aprobar = el("button", null, "btn btn-success btn-sm");
+  aprobar.type = "button";
+  aprobar.append(el("i", null, "bi bi-check-lg me-1"), document.createTextNode("Aprobar"));
+  aprobar.addEventListener("click", () => ejecutarRevision(
+    d,
+    "aprobar",
+    { revisor: revisor.value.trim() || "Revisor", comentario: comentario.value }
+  ));
+  const corregir = el("button", null, "btn btn-outline-primary btn-sm");
+  corregir.type = "button";
+  corregir.append(el("i", null, "bi bi-pencil me-1"), document.createTextNode("Editar datos"));
+  acciones.append(aprobar, corregir);
+
+  const rechazar = el("button", null, "btn btn-outline-danger btn-sm");
+  rechazar.type = "button";
+  rechazar.append(el("i", null, "bi bi-x-lg me-1"), document.createTextNode("Rechazar"));
+  rechazar.addEventListener("click", () => {
+    if (!comentario.value.trim()) {
+      toast("Escribe el motivo del rechazo.", "warning");
+      comentario.focus();
+      return;
+    }
+    ejecutarRevision(d, "rechazar", {
+      revisor: revisor.value.trim() || "Revisor",
+      motivo: comentario.value.trim(),
+    });
+  });
+  acciones.append(rechazar);
+
+  const editor = el("div", null, "d-none mt-3");
+  const etiquetaJson = el("label", "Datos extraídos (JSON)", "form-label small fw-semibold");
+  const json = el("textarea", null, "form-control font-monospace small");
+  json.id = "datos-json-" + d.id;
+  etiquetaJson.htmlFor = json.id;
+  editor.append(etiquetaJson);
+  json.rows = 14;
+  json.spellcheck = false;
+  json.value = JSON.stringify(d.datos, null, 2);
+  editor.append(json);
+  const guardarCorreccion = el("button", "Guardar corrección", "btn btn-primary btn-sm mt-2");
+  guardarCorreccion.type = "button";
+  guardarCorreccion.addEventListener("click", async () => {
+    let datosCorregidos;
+    try {
+      datosCorregidos = JSON.parse(json.value);
+      if (!datosCorregidos || Array.isArray(datosCorregidos) || typeof datosCorregidos !== "object") {
+        throw new Error("El contenido debe ser un objeto JSON.");
+      }
+    } catch (e) {
+      toast("JSON inválido: " + e.message, "warning");
+      return;
+    }
+    await ejecutarRevision(d, "corregir", {
+      revisor: revisor.value.trim() || "Revisor",
+      comentario: comentario.value,
+      datos: datosCorregidos,
+    });
+  });
+  editor.append(guardarCorreccion);
+  corregir.addEventListener("click", () => {
+    editor.classList.toggle("d-none");
+    json.value = JSON.stringify(d.datos, null, 2);
+    if (!editor.classList.contains("d-none")) json.focus();
+  });
+
+  revision.append(acciones, editor);
+  cuerpo.append(revision);
+
+  const secBitacora = el("section", null, "panel mt-3");
+  secBitacora.append(el("h3", "Bitácora de cambios", "panel-titulo"));
+  const listaBitacora = el("div", "Cargando bitácora…", "text-secondary small");
+  secBitacora.append(listaBitacora);
+  cuerpo.append(secBitacora);
+  cargarBitacora(d.id, listaBitacora);
+
   const pie = $("detalle-pie");
   pie.replaceChildren();
 
@@ -463,6 +590,89 @@ function abrirDetalle(d) {
   pie.append(eliminar, copiar, descargar, cerrar);
 
   bootstrap.Modal.getOrCreateInstance($("detalle")).show();
+}
+
+async function ejecutarRevision(documento, accion, datos) {
+  const metodos = { aprobar: "POST", corregir: "PUT", rechazar: "POST" };
+  try {
+    const r = await fetch("/documentos/" + documento.id + "/" + accion, {
+      method: metodos[accion],
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+    const respuesta = await r.json();
+    if (!r.ok) {
+      const detalle = typeof respuesta.detail === "string"
+        ? respuesta.detail
+        : JSON.stringify(respuesta.detail || "No se pudo guardar la revisión.");
+      toast(detalle, "danger");
+      return;
+    }
+    toast("Revisión guardada.", "success");
+    await cargarLista();
+    abrirDetalle(respuesta);
+  } catch (e) {
+    toast("No se pudo conectar con el servidor.", "danger");
+  }
+}
+
+async function cargarBitacora(documentoId, destino) {
+  try {
+    const r = await fetch("/documentos/" + documentoId + "/bitacora");
+    const cambios = await r.json();
+    if (!r.ok) throw new Error("respuesta " + r.status);
+    destino.replaceChildren();
+    if (cambios.length === 0) {
+      destino.append(el("div", "Aún no hay cambios registrados.", "text-secondary small"));
+      return;
+    }
+    for (const cambio of cambios) {
+      const entrada = el("article", null, "bitacora-item");
+      const encabezado = el("div", null, "d-flex flex-wrap justify-content-between gap-2");
+      encabezado.append(
+        el("strong", cambio.accion[0].toUpperCase() + cambio.accion.slice(1)),
+        el("span", new Date(cambio.creado_en).toLocaleString("es-MX"), "text-secondary small")
+      );
+      entrada.append(encabezado);
+      entrada.append(el(
+        "div",
+        cambio.revisor + " · " + cambio.estado_anterior + " → " + cambio.estado_nuevo,
+        "small"
+      ));
+      if (cambio.comentario) entrada.append(el("div", cambio.comentario, "small mt-1"));
+
+      const campos = Object.keys({ ...cambio.datos_anteriores, ...cambio.datos_nuevos })
+        .filter((clave) =>
+          JSON.stringify(cambio.datos_anteriores[clave]) !== JSON.stringify(cambio.datos_nuevos[clave])
+        );
+      const motivosCambiaron =
+        JSON.stringify(cambio.motivos_anteriores) !== JSON.stringify(cambio.motivos_nuevos);
+      if (campos.length > 0 || motivosCambiaron) {
+        const detalle = el("details", null, "small mt-1");
+        detalle.append(el(
+          "summary",
+          "Diferencias" + (campos.length ? ": " + campos.join(", ") : "")
+        ));
+        for (const clave of campos) {
+          const anterior = JSON.stringify(cambio.datos_anteriores[clave]);
+          const nuevo = JSON.stringify(cambio.datos_nuevos[clave]);
+          detalle.append(el("div", clave + ": " + anterior + " → " + nuevo, "text-break"));
+        }
+        if (motivosCambiaron) {
+          detalle.append(el(
+            "div",
+            "Motivos: " + JSON.stringify(cambio.motivos_anteriores) + " → " +
+              JSON.stringify(cambio.motivos_nuevos),
+            "text-break"
+          ));
+        }
+        entrada.append(detalle);
+      }
+      destino.append(entrada);
+    }
+  } catch (e) {
+    destino.textContent = "No se pudo cargar la bitácora.";
+  }
 }
 
 /* ---------- Subida de archivos ---------- */
@@ -551,7 +761,11 @@ $("enviar").addEventListener("click", async () => {
 });
 
 $("filtro").addEventListener("change", pintarTabla);
-$("buscar").addEventListener("input", pintarTabla);
+let temporizadorBusqueda;
+$("buscar").addEventListener("input", () => {
+  clearTimeout(temporizadorBusqueda);
+  temporizadorBusqueda = setTimeout(cargarLista, 250);
+});
 
 iniciarTema();
 cargarInfo();

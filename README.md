@@ -10,7 +10,8 @@ API y aplicación web en Python que recibe **facturas en PDF**, extrae sus datos
 2. El modelo elegido lee el documento y devuelve los datos con un esquema fijo (JSON): emisor, receptor, folio fiscal, montos, conceptos y más.
 3. El sistema valida los datos con reglas propias (por ejemplo, que subtotal más IVA coincida con el total).
 4. Si todo cuadra, el documento queda **validado**. Si no, queda en **revisión manual** con el detalle de cada regla que falló.
-5. Consultas la lista, filtras por estado y abres el detalle de cada documento.
+5. Desde el detalle puedes **aprobar**, **corregir los datos extraídos** o **rechazar** el documento. Las correcciones vuelven a ejecutar las reglas de validación.
+6. La bitácora registra cada acción, revisor, comentario y el estado y datos antes y después del cambio.
 
 ## Elegir dónde se procesa
 
@@ -67,7 +68,8 @@ app/
   schemas.py        esquema de la factura (Pydantic)
   validators.py     reglas de validación
   servicio.py       modo real / modo simulado
-  models.py, db.py  base de datos
+  models.py, db.py  modelos relacionales y conexión a base de datos
+  persistencia.py  sincronización de columnas/conceptos y migración de documentos existentes
   comparacion.py    comparación de resultados para la evaluación
 static/             página web (index.html, styles.css, app.js)
 scripts/            generar facturas de prueba, evaluar y utilidades
@@ -134,7 +136,7 @@ Si los modelos se descargan en una unidad con poco espacio, define `OLLAMA_MODEL
 | `LLM_PROVEEDOR` | `gemini` (por defecto) u `ollama`. |
 | `GEMINI_API_KEY` | Clave de la API de Gemini. |
 | `GEMINI_MODEL` | Modelo de Gemini. En modo simulado debe coincidir con la carpeta de `resultados/extracciones/`. |
-| `GEMINI_MODELOS` | Opcional. Lista separada por comas de los modelos de Gemini que ofrece la página. |
+| `GEMINI_MODELOS` | Opcional. Lista separada por comas de respaldo si no se puede consultar la API de Gemini. Cuando la API responde, la página muestra hasta 10 modelos compatibles con `generateContent`. |
 | `GEMINI_ENTRADA` | `pdf` (envía el PDF completo, por defecto), `texto` (envía el texto sin enmascarar) o `mascara` (envía el texto enmascarado). |
 | `PRIVACIDAD_TERMINOS` | Opcional. Términos adicionales a enmascarar, separados por `;`. |
 | `OLLAMA_MODEL` | Modelo de Ollama (por defecto `llama3.1:8b`). |
@@ -186,8 +188,12 @@ Las diferencias de centavos se toleran. Una factura sin IVA (por ejemplo, honora
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/documentos` | Sube un PDF (máximo 5 MB). Devuelve `201` si es nuevo y `200` si ya estaba procesado. |
-| `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `limite`, `desplazamiento`. |
+| `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `busqueda`, `limite`, `desplazamiento`. La búsqueda usa columnas de archivo, emisor, RFC, folio, fecha y total, además de la descripción de conceptos. |
 | `GET` | `/documentos/{id}` | Detalle de un documento. |
+| `POST` | `/documentos/{id}/aprobar` | Aprueba manualmente. Acepta `revisor` y `comentario` opcionales. |
+| `PUT` | `/documentos/{id}/corregir` | Corrige `datos` (JSON de factura), vuelve a validar y registra el cambio. |
+| `POST` | `/documentos/{id}/rechazar` | Rechaza; requiere `motivo` y acepta `revisor`. |
+| `GET` | `/documentos/{id}/bitacora` | Historial de revisiones con snapshots de datos y estado. |
 | `DELETE` | `/documentos/{id}` | Elimina un documento. |
 | `POST` | `/documentos/{id}/revalidar` | Vuelve a aplicar las reglas de validación a los datos guardados. |
 | `GET` | `/info` | Modo y modelo en uso. |
@@ -217,6 +223,29 @@ Los errores intencionales son: total mal sumado, RFC inválido, conceptos que no
 - **No se ha evaluado de forma sistemática** el modo con Ollama, el enmascarado ni los campos adicionales del CFDI; se probaron a mano con un CFDI real, que no se incluye en el repositorio.
 - Para reproducirla hace falta una clave de Gemini y las facturas generadas: `python scripts/generar_facturas.py` y luego `python scripts/evaluar.py`.
 
+### Casos difíciles: modo local y Gemini con máscara
+
+Hay un conjunto separado de facturas sintéticas para probar una factura escaneada, una página rotada, una factura sin RFC y otra con IVA de 0 %. No se incluyen otros tipos de documento. Los archivos se generan localmente:
+
+```bash
+python scripts/generar_facturas_dificiles.py
+```
+
+Ejecuta cada perfil por separado. Ollama debe estar activo y tener instalado el modelo elegido; para Gemini configura `GEMINI_API_KEY`:
+
+```bash
+python scripts/evaluar_facturas_dificiles.py --proveedor ollama --modelo llama3.2:3b
+python scripts/evaluar_facturas_dificiles.py --proveedor gemini --modelo gemini-3.8-flash
+```
+
+Gemini se ejecuta siempre con `GEMINI_ENTRADA=mascara`; las claves de API no se imprimen ni se guardan en los resultados. El runner compara los campos con el manifiesto esperado, vuelve a aplicar las reglas de validación y guarda las respuestas en caché por proveedor/modelo para repetir el análisis sin llamar de nuevo al modelo:
+
+```bash
+python scripts/evaluar_facturas_dificiles.py --proveedor ollama --modelo llama3.2:3b --cache
+```
+
+Cada ejecución crea un reporte bajo `resultados/evaluacion_dificiles_<proveedor>-<modelo>-<entrada>.md`. En la factura escaneada, el resultado esperado es el error de “no contiene texto extraíble”: el proyecto aún no incorpora OCR, por lo que reconocer esa limitación no significa que haya extraído la factura. Los reportes son mediciones sobre datos sintéticos; no sustituyen pruebas con documentos reales.
+
 ## Pruebas automáticas
 
 ```bash
@@ -233,25 +262,17 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Deduplicación por huella SHA-256:** subir el mismo PDF dos veces devuelve el resultado guardado sin volver a llamar al modelo.
 - **Privacidad que falla en seguro:** si tras enmascarar queda algún dato sensible, no se envía nada a Gemini.
 - **Modo simulado por defecto:** evita gastar cuota por accidente.
-- **Datos como JSON:** la factura extraída se guarda en una columna JSON. Es práctico en un MVP porque tolera cambios de esquema; en un sistema real los campos de búsqueda (emisor, fecha, total, folio fiscal) serían columnas, con los conceptos en su propia tabla.
+- **Configuración persistente:** el proveedor, modelo y modo de privacidad seleccionados se guardan en la base de datos y se restauran al iniciar. Las claves de API nunca se guardan allí.
+- **Datos y conceptos:** los datos completos también se mantienen como JSON para compatibilidad con la API y la bitácora; emisor, RFC, fecha, total y folios se guardan en columnas dedicadas, y cada concepto se almacena como fila independiente. La búsqueda de la lista consulta estos campos y las descripciones de conceptos directamente en la base de datos. Al iniciar, las columnas y conceptos se completan para documentos ya existentes.
 - **Seguridad básica:** la página inserta el texto del PDF con `textContent` (nunca como HTML), la API limita el tamaño y comprueba que el archivo sea un PDF, y las claves viven solo en `.env`.
 
 ## Limitaciones
 
-- **Sin evaluación con documentos reales ni escaneados.** El modo local no hace OCR.
 - **Calidad del modelo local:** los modelos pequeños de Ollama son más lentos en equipos sin GPU y pueden cometer errores (por ejemplo, confundir cantidad y valor unitario). Las reglas de validación no detectan todos los casos.
 - **IVA:** solo se valida la tasa del 16 %. No hay manejo de otras tasas ni de retenciones.
 - **Moneda:** la interfaz muestra los importes con formato de pesos mexicanos aunque la factura venga en otra moneda.
-- **Sin autenticación ni permisos.** Pensado para ejecutarse en local; en particular, `PUT /config` no debe exponerse en una red.
-- **La revisión manual solo marca:** todavía no se pueden aprobar ni corregir documentos desde la interfaz.
+- **Sin autenticación ni permisos.** Pensado para ejecutarse en local; `PUT /config`, los endpoints de revisión y la bitácora no verifican identidad. El campo `revisor` es informativo y no debe considerarse una firma o atribución confiable.
 - **Privacidad con Gemini:** el modo sin máscara envía el PDF completo, y la máscara no es infalible. En el plan gratuito, Google puede usar los datos enviados para mejorar sus productos (revisa los términos vigentes). No subas documentos reales o confidenciales a Gemini; usa Ollama.
 - **Cuota:** el plan gratuito de Gemini limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
 - **CFDI:** para facturas electrónicas mexicanas, el archivo XML contiene los datos de forma estructurada y es más confiable que leer el PDF. Este proyecto está pensado para documentos sin formato estructurado.
 
-## Próximos pasos
-
-- Flujo de revisión manual: aprobar, corregir y rechazar, con bitácora de cambios.
-- Guardar la configuración elegida en la página para que sobreviva a reinicios.
-- Columnas reales para los campos de búsqueda y tabla de conceptos.
-- Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
-- Otros tipos de documento.

@@ -147,6 +147,9 @@ body {
 }
 .estado-ok { color: var(--ok); background: var(--ok-fondo); }
 .estado-rev { color: var(--aviso); background: var(--aviso-fondo); }
+.estado-rechazado { color: #b91c1c; background: #fee2e2; }
+
+[data-bs-theme="dark"] .estado-rechazado { color: #fca5a5; background: #450a0a; }
 
 .buscador { min-width: 220px; }
 .filtro { width: auto; }
@@ -233,6 +236,12 @@ body {
   border-radius: 12px;
   padding: 1rem 1.1rem;
 }
+.bitacora-item {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+.bitacora-item:last-child { border-bottom: 0; }
+.bitacora-item summary { cursor: pointer; color: var(--tenue); }
 .panel-titulo {
   font-size: 0.8rem;
   text-transform: uppercase;
