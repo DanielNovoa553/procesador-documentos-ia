@@ -4,18 +4,19 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 import json
+import os
 from app.schemas import factura_desde_json
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from app import configuracion, servicio
-from app.db import Base, engine, get_db
+from app.db import Base, SessionLocal, engine, get_db
 from app.extractor import ExtraccionError
-from app.models import BitacoraRevision, Documento
+from app.models import BitacoraRevision, ConfiguracionPersistida, Documento
 from app.validators import validar
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -26,6 +27,8 @@ RAIZ = Path(__file__).resolve().parents[1]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        restaurar_configuracion(db)
     yield
 
 
@@ -131,19 +134,54 @@ class ConfigIn(BaseModel):
     acepta_riesgo: bool = False
 
 
+def restaurar_configuracion(db: Session) -> None:
+    guardada = db.get(ConfiguracionPersistida, 1)
+    if guardada is not None:
+        configuracion.restaurar(
+            guardada.proveedor, guardada.modelo, guardada.privacidad
+        )
+
+
 @app.get("/config")
-def leer_config():
+def leer_config(db: Session = Depends(get_db)):
+    restaurar_configuracion(db)
     return {"modo": servicio.modo(), **configuracion.estado()}
 
 
 @app.put("/config")
-def guardar_config(datos: ConfigIn):
+def guardar_config(datos: ConfigIn, db: Session = Depends(get_db)):
+    variables = ("LLM_PROVEEDOR", "OLLAMA_MODEL", "GEMINI_MODEL", "GEMINI_ENTRADA")
+    anterior = {nombre: os.getenv(nombre) for nombre in variables}
     try:
         actual = configuracion.aplicar(
             datos.proveedor, datos.modelo, datos.privacidad, datos.acepta_riesgo
         )
     except configuracion.ConfiguracionError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        guardada = db.get(ConfiguracionPersistida, 1)
+        if guardada is None:
+            guardada = ConfiguracionPersistida(
+                id=1,
+                proveedor=datos.proveedor.strip().lower(),
+                modelo=datos.modelo.strip(),
+                privacidad=datos.privacidad,
+            )
+            db.add(guardada)
+        else:
+            guardada.proveedor = datos.proveedor.strip().lower()
+            guardada.modelo = datos.modelo.strip()
+            guardada.privacidad = datos.privacidad
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        for nombre, valor in anterior.items():
+            if valor is None:
+                os.environ.pop(nombre, None)
+            else:
+                os.environ[nombre] = valor
+        raise HTTPException(status_code=500, detail="No se pudo guardar la configuración") from e
     return {"modo": servicio.modo(), **actual}
 
 

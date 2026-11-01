@@ -2,9 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app import configuracion
 from app.api import app
+from app.db import Base, get_db
 
 
 @pytest.fixture
@@ -35,7 +39,23 @@ def client(monkeypatch):
             "gemini-3.0-pro",
         ],
     )
-    return TestClient(app)
+    motor = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(bind=motor)
+    Sesion = sessionmaker(bind=motor, autoflush=False, expire_on_commit=False)
+
+    def reemplazo():
+        db = Sesion()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = reemplazo
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+    motor.dispose()
 
 
 def guardar(client, **datos):
@@ -112,6 +132,20 @@ def test_gemini_con_mascara_configura_el_entorno(client):
     assert r.status_code == 200
     estado = r.json()
     assert estado["proveedor"] == "gemini" and estado["privacidad"] == "mascara"
+
+
+def test_configuracion_guardada_se_restablece_desde_base_de_datos(client, monkeypatch):
+    guardada = guardar(client, modelo="gemini-2.5-flash").json()
+    assert guardada["proveedor"] == "gemini"
+
+    monkeypatch.setenv("LLM_PROVEEDOR", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.2:3b")
+
+    restaurada = client.get("/config").json()
+
+    assert restaurada["proveedor"] == "gemini"
+    assert restaurada["modelo"] == "gemini-2.5-flash"
+    assert configuracion.estado()["privacidad"] == "mascara"
 
 
 def test_gemini_sin_mascara_exige_aceptar_el_riesgo(client):

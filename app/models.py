@@ -40,3 +40,13 @@ class BitacoraRevision(Base):
     motivos_anteriores: Mapped[list] = mapped_column(JSON)
     motivos_nuevos: Mapped[list] = mapped_column(JSON)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class ConfiguracionPersistida(Base):
+    __tablename__ = "configuracion_app"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proveedor: Mapped[str] = mapped_column(String(20))
+    modelo: Mapped[str] = mapped_column(String(100))
+    privacidad: Mapped[str] = mapped_column(String(20))
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)

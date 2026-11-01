@@ -24,6 +24,22 @@ class ConfiguracionError(Exception):
     pass
 
 
+def restaurar(proveedor: str, modelo: str, privacidad: str) -> None:
+    if proveedor not in ("gemini", "ollama"):
+        raise ConfiguracionError("Proveedor persistido no válido")
+    if not _NOMBRE_MODELO.match(modelo):
+        raise ConfiguracionError("Modelo persistido no válido")
+    if privacidad not in PRIVACIDAD:
+        raise ConfiguracionError("Privacidad persistida no válida")
+
+    os.environ["LLM_PROVEEDOR"] = proveedor
+    os.environ["GEMINI_ENTRADA"] = "mascara" if privacidad == "mascara" else "pdf"
+    if proveedor == "ollama":
+        os.environ["OLLAMA_MODEL"] = modelo
+    else:
+        os.environ["GEMINI_MODEL"] = modelo
+
+
 def ollama_url() -> str:
     return os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 
@@ -134,6 +150,8 @@ def aplicar(proveedor: str, modelo: str, privacidad: str, acepta_riesgo: bool) -
         raise ConfiguracionError("Proveedor no válido: usa 'gemini' u 'ollama'")
     if not _NOMBRE_MODELO.match(modelo):
         raise ConfiguracionError("Nombre de modelo no válido")
+    if privacidad not in PRIVACIDAD:
+        raise ConfiguracionError("Privacidad no válida: usa 'mascara' o 'sin_mascara'")
 
     if proveedor == "ollama":
         instalados = ollama_modelos()
@@ -147,8 +165,6 @@ def aplicar(proveedor: str, modelo: str, privacidad: str, acepta_riesgo: bool) -
         os.environ["OLLAMA_MODEL"] = modelo
         return estado()
 
-    if privacidad not in PRIVACIDAD:
-        raise ConfiguracionError("Privacidad no válida: usa 'mascara' o 'sin_mascara'")
     if modelo not in gemini_modelos():
         raise ConfiguracionError(f"El modelo '{modelo}' no está en la lista de Gemini disponibles")
     if not os.getenv("GEMINI_API_KEY"):

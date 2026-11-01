@@ -238,6 +238,7 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Deduplicación por huella SHA-256:** subir el mismo PDF dos veces devuelve el resultado guardado sin volver a llamar al modelo.
 - **Privacidad que falla en seguro:** si tras enmascarar queda algún dato sensible, no se envía nada a Gemini.
 - **Modo simulado por defecto:** evita gastar cuota por accidente.
+- **Configuración persistente:** el proveedor, modelo y modo de privacidad seleccionados se guardan en la base de datos y se restauran al iniciar. Las claves de API nunca se guardan allí.
 - **Datos como JSON:** la factura extraída se guarda en una columna JSON. Es práctico en un MVP porque tolera cambios de esquema; en un sistema real los campos de búsqueda (emisor, fecha, total, folio fiscal) serían columnas, con los conceptos en su propia tabla.
 - **Seguridad básica:** la página inserta el texto del PDF con `textContent` (nunca como HTML), la API limita el tamaño y comprueba que el archivo sea un PDF, y las claves viven solo en `.env`.
 
@@ -254,7 +255,6 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 
 ## Próximos pasos
 
-- Guardar la configuración elegida en la página para que sobreviva a reinicios.
 - Columnas reales para los campos de búsqueda y tabla de conceptos.
 - Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
 - Otros tipos de documento.
