@@ -68,7 +68,8 @@ app/
   schemas.py        esquema de la factura (Pydantic)
   validators.py     reglas de validación
   servicio.py       modo real / modo simulado
-  models.py, db.py  base de datos
+  models.py, db.py  modelos relacionales y conexión a base de datos
+  persistencia.py  sincronización de columnas/conceptos y migración de documentos existentes
   comparacion.py    comparación de resultados para la evaluación
 static/             página web (index.html, styles.css, app.js)
 scripts/            generar facturas de prueba, evaluar y utilidades
@@ -187,7 +188,7 @@ Las diferencias de centavos se toleran. Una factura sin IVA (por ejemplo, honora
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/documentos` | Sube un PDF (máximo 5 MB). Devuelve `201` si es nuevo y `200` si ya estaba procesado. |
-| `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `limite`, `desplazamiento`. |
+| `GET` | `/documentos` | Lista documentos. Parámetros: `estado`, `busqueda`, `limite`, `desplazamiento`. La búsqueda usa columnas de archivo, emisor, RFC, folio, fecha y total, además de la descripción de conceptos. |
 | `GET` | `/documentos/{id}` | Detalle de un documento. |
 | `POST` | `/documentos/{id}/aprobar` | Aprueba manualmente. Acepta `revisor` y `comentario` opcionales. |
 | `PUT` | `/documentos/{id}/corregir` | Corrige `datos` (JSON de factura), vuelve a validar y registra el cambio. |
@@ -239,7 +240,7 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Privacidad que falla en seguro:** si tras enmascarar queda algún dato sensible, no se envía nada a Gemini.
 - **Modo simulado por defecto:** evita gastar cuota por accidente.
 - **Configuración persistente:** el proveedor, modelo y modo de privacidad seleccionados se guardan en la base de datos y se restauran al iniciar. Las claves de API nunca se guardan allí.
-- **Datos como JSON:** la factura extraída se guarda en una columna JSON. Es práctico en un MVP porque tolera cambios de esquema; en un sistema real los campos de búsqueda (emisor, fecha, total, folio fiscal) serían columnas, con los conceptos en su propia tabla.
+- **Datos y conceptos:** los datos completos también se mantienen como JSON para compatibilidad con la API y la bitácora; emisor, RFC, fecha, total y folios se guardan en columnas dedicadas, y cada concepto se almacena como fila independiente. La búsqueda de la lista consulta estos campos y las descripciones de conceptos directamente en la base de datos. Al iniciar, las columnas y conceptos se completan para documentos ya existentes.
 - **Seguridad básica:** la página inserta el texto del PDF con `textContent` (nunca como HTML), la API limita el tamaño y comprueba que el archivo sea un PDF, y las claves viven solo en `.env`.
 
 ## Limitaciones
@@ -255,6 +256,5 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 
 ## Próximos pasos
 
-- Columnas reales para los campos de búsqueda y tabla de conceptos.
 - Evaluación del modo local y del enmascarado con documentos más difíciles (escaneos, rotados, sin RFC, con IVA en 0 %).
 - Otros tipos de documento.

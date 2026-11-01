@@ -10,13 +10,14 @@ from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, Uplo
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import String, cast, delete, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from app import configuracion, servicio
 from app.db import Base, SessionLocal, engine, get_db
 from app.extractor import ExtraccionError
-from app.models import BitacoraRevision, ConfiguracionPersistida, Documento
+from app.models import BitacoraRevision, ConfiguracionPersistida, ConceptoDocumento, Documento
+from app.persistencia import actualizar_documento_desde_factura, migrar_documentos
 from app.validators import validar
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -27,6 +28,7 @@ RAIZ = Path(__file__).resolve().parents[1]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    migrar_documentos(engine)
     with SessionLocal() as db:
         restaurar_configuracion(db)
     yield
@@ -215,9 +217,9 @@ def subir_documento(
         sha256=huella,
         estado=resultado.estado,
         motivos=[{"codigo": m.codigo, "detalle": m.detalle} for m in resultado.motivos],
-        datos=factura.model_dump(),
         modelo=servicio.etiqueta_modelo(),
     )
+    actualizar_documento_desde_factura(documento, factura)
     db.add(documento)
     try:
         db.commit()
@@ -232,6 +234,7 @@ def subir_documento(
 @app.get("/documentos", response_model=list[DocumentoOut])
 def listar_documentos(
     estado: str | None = Query(default=None),
+    busqueda: str | None = Query(default=None, max_length=200),
     limite: int = Query(default=50, ge=1, le=200),
     desplazamiento: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -241,6 +244,23 @@ def listar_documentos(
     consulta = select(Documento)
     if estado:
         consulta = consulta.where(Documento.estado == estado)
+    termino = (busqueda or "").strip()
+    if termino:
+        patron = f"%{termino}%"
+        consulta = consulta.where(
+            or_(
+                Documento.archivo.ilike(patron),
+                Documento.emisor.ilike(patron),
+                Documento.rfc_emisor.ilike(patron),
+                Documento.nombre_receptor.ilike(patron),
+                Documento.rfc_receptor.ilike(patron),
+                Documento.folio.ilike(patron),
+                Documento.folio_fiscal.ilike(patron),
+                Documento.fecha.ilike(patron),
+                cast(Documento.total, String).ilike(patron),
+                Documento.conceptos.any(ConceptoDocumento.descripcion.ilike(patron)),
+            )
+        )
     consulta = consulta.order_by(Documento.id.desc()).limit(limite).offset(desplazamiento)
     return db.scalars(consulta).all()
 
@@ -301,7 +321,7 @@ def corregir_documento(
         deepcopy(documento.motivos),
     )
     resultado = validar(factura)
-    documento.datos = factura.model_dump()
+    actualizar_documento_desde_factura(documento, factura)
     documento.estado = "corregido" if resultado.estado == "validado" else "revision_manual"
     documento.motivos = [
         {"codigo": motivo.codigo, "detalle": motivo.detalle}

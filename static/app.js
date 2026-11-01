@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 let documentos = [];
+let documentosMostrados = [];
 let archivoSeleccionado = null;
 
 function el(tag, texto, clase) {
@@ -222,12 +223,9 @@ function actualizarResumen() {
 
 function filtrados() {
   const estado = $("filtro").value;
-  const texto = $("buscar").value.trim().toLowerCase();
-  return documentos.filter((d) => {
+  return documentosMostrados.filter((d) => {
     if (estado && d.estado !== estado) return false;
-    if (!texto) return true;
-    const emisor = String(d.datos.emisor || "").toLowerCase();
-    return d.archivo.toLowerCase().includes(texto) || emisor.includes(texto);
+    return true;
   });
 }
 
@@ -243,7 +241,7 @@ function pintarTabla() {
     td.append(el("i", null, "bi bi-inbox"));
     td.append(
       document.createTextNode(
-        documentos.length === 0
+        documentos.length === 0 && !$("buscar").value.trim()
           ? "Aún no hay documentos. Sube una factura en PDF para empezar."
           : "Ningún documento coincide con la búsqueda."
       )
@@ -270,18 +268,34 @@ function pintarTabla() {
     tbody.append(tr);
   }
 
-  $("contador").textContent =
-    documentos.length === 0 ? "" : "Mostrando " + lista.length + " de " + documentos.length + " documentos";
+  $("contador").textContent = documentos.length === 0
+    ? ""
+    : $("buscar").value.trim()
+      ? "Resultados mostrados: " + lista.length
+      : "Mostrando " + lista.length + " de " + documentos.length + " documentos";
 }
 
 async function cargarLista() {
   try {
-    const r = await fetch("/documentos?limite=200");
+    const parametros = new URLSearchParams({ limite: "200" });
+    const busqueda = $("buscar").value.trim();
+    if (busqueda) parametros.set("busqueda", busqueda);
+    const r = await fetch("/documentos?" + parametros.toString());
     if (!r.ok) throw new Error("respuesta " + r.status);
-    documentos = await r.json();
+    const encontrados = await r.json();
+    if (busqueda) {
+      const resumen = await fetch("/documentos?limite=200");
+      if (!resumen.ok) throw new Error("respuesta " + resumen.status);
+      documentos = await resumen.json();
+      documentosMostrados = encontrados;
+    } else {
+      documentos = encontrados;
+      documentosMostrados = encontrados;
+    }
   } catch (e) {
     toast("No se pudo cargar la lista de documentos.", "danger");
     documentos = [];
+    documentosMostrados = [];
   }
   actualizarResumen();
   pintarTabla();
@@ -747,7 +761,11 @@ $("enviar").addEventListener("click", async () => {
 });
 
 $("filtro").addEventListener("change", pintarTabla);
-$("buscar").addEventListener("input", pintarTabla);
+let temporizadorBusqueda;
+$("buscar").addEventListener("input", () => {
+  clearTimeout(temporizadorBusqueda);
+  temporizadorBusqueda = setTimeout(cargarLista, 250);
+});
 
 iniciarTema();
 cargarInfo();

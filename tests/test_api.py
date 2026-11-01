@@ -99,6 +99,59 @@ def test_listar_y_filtrar_por_estado(client, monkeypatch):
     assert client.get("/documentos?estado=otro").status_code == 422
 
 
+def test_busqueda_usa_columnas_y_conceptos_normalizados(client, monkeypatch):
+    datos_factura = factura(
+        emisor="Distribuidora Aurora",
+        rfc_emisor="DAU010203AB1",
+        folio="FAC-2026-77",
+        folio_fiscal="41F38E36-A5CB-4A0E-AEAC-D944605CCAF5",
+        conceptos=[
+            nuevo_concepto(
+                descripcion="Servicio de instalación",
+                cantidad=1,
+                importe=1000.0,
+            )
+        ],
+    )
+    monkeypatch.setattr(servicio, "extraer_segun_modo", lambda n, c: datos_factura)
+    documento = subir(client).json()
+
+    for termino in (
+        "aurora",
+        "DAU010203AB1",
+        "FAC-2026-77",
+        "41F38E36-A5CB",
+        "instalación",
+        "1160.0",
+    ):
+        resultados = client.get("/documentos", params={"busqueda": termino}).json()
+        assert [resultado["id"] for resultado in resultados] == [documento["id"]]
+    assert client.get("/documentos", params={"busqueda": "no existe"}).json() == []
+
+
+def test_correccion_sincroniza_columnas_y_conceptos_para_busqueda(client, monkeypatch):
+    monkeypatch.setattr(servicio, "extraer_segun_modo", lambda n, c: factura(total=9999.0))
+    documento = subir(client, PDF + b"sincronizacion").json()
+    datos_corregidos = factura(
+        conceptos=[
+            nuevo_concepto(
+                descripcion="Soporte técnico anual",
+                cantidad=1,
+                importe=1000.0,
+            )
+        ]
+    ).model_dump()
+
+    r = client.put(
+        f"/documentos/{documento['id']}/corregir",
+        json={"datos": datos_corregidos},
+    )
+
+    assert r.status_code == 200
+    assert client.get("/documentos", params={"busqueda": "Soporte técnico"}).json()[0]["id"] == documento["id"]
+    assert client.get("/documentos", params={"busqueda": "Licencia"}).json() == []
+
+
 def test_detalle_y_documento_inexistente(client):
     creado = subir(client).json()
     assert client.get(f"/documentos/{creado['id']}").status_code == 200
