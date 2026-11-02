@@ -4,6 +4,10 @@ API y aplicación web en Python que recibe **facturas en PDF**, extrae sus datos
 
 > **Proyecto de portafolio.** No es un sistema listo para producción; las limitaciones están descritas más abajo.
 
+## Demostración
+
+![Demostración de la aplicación](docs/Procesador%20de%20documentos.gif)
+
 ## Qué hace
 
 1. Subes una factura en PDF (por la página web o por la API).
@@ -135,8 +139,7 @@ Si los modelos se descargan en una unidad con poco espacio, define `OLLAMA_MODEL
 | `EXTRACTOR_MODO` | `mock` (por defecto) o `real`. |
 | `LLM_PROVEEDOR` | `gemini` (por defecto) u `ollama`. |
 | `GEMINI_API_KEY` | Clave de la API de Gemini. |
-| `GEMINI_MODEL` | Modelo de Gemini. En modo simulado debe coincidir con la carpeta de `resultados/extracciones/`. |
-| `GEMINI_MODELOS` | Opcional. Lista separada por comas de respaldo si no se puede consultar la API de Gemini. Cuando la API responde, la página muestra hasta 10 modelos compatibles con `generateContent`. |
+| `GEMINI_MODEL` | Modelo de Gemini. El selector ofrece la lista fija de modelos definida en `app/configuracion.py`. En modo simulado debe coincidir con la carpeta de `resultados/extracciones/`. |
 | `GEMINI_ENTRADA` | `pdf` (envía el PDF completo, por defecto), `texto` (envía el texto sin enmascarar) o `mascara` (envía el texto enmascarado). |
 | `PRIVACIDAD_TERMINOS` | Opcional. Términos adicionales a enmascarar, separados por `;`. |
 | `OLLAMA_MODEL` | Modelo de Ollama (por defecto `llama3.1:8b`). |
@@ -275,4 +278,3 @@ Cubren las reglas de validación, el enmascarado de privacidad, el extractor con
 - **Privacidad con Gemini:** el modo sin máscara envía el PDF completo, y la máscara no es infalible. En el plan gratuito, Google puede usar los datos enviados para mejorar sus productos (revisa los términos vigentes). No subas documentos reales o confidenciales a Gemini; usa Ollama.
 - **Cuota:** el plan gratuito de Gemini limita las solicitudes por minuto y por día, y los modelos disponibles cambian con el tiempo.
 - **CFDI:** para facturas electrónicas mexicanas, el archivo XML contiene los datos de forma estructurada y es más confiable que leer el PDF. Este proyecto está pensado para documentos sin formato estructurado.
-

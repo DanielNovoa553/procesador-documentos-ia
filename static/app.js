@@ -138,7 +138,7 @@ function pintarModelos() {
   } else if (prov === "gemini" && configActual.gemini_modelos_aviso) {
     ayuda = configActual.gemini_modelos_aviso;
   } else if (prov === "gemini") {
-    ayuda = "Modelos compatibles con generación de contenido disponibles en Gemini (máximo 10).";
+    ayuda = "Modelos de Gemini disponibles para seleccionar.";
   }
   $("cfg-modelo-ayuda").textContent = ayuda;
   actualizarPrivacidad();
