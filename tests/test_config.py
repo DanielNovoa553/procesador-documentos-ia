@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -22,23 +20,6 @@ def client(monkeypatch):
     ):
         monkeypatch.setenv(var, valor)
     monkeypatch.setattr(configuracion, "ollama_modelos", lambda: ["llama3.1:8b", "llama3.2:3b"])
-    monkeypatch.setattr(
-        configuracion,
-        "_listar_modelos_gemini_api",
-        lambda api_key: [
-            "gemini-3.8-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-exp",
-            "gemini-3.1-flash",
-            "gemini-3.0-pro",
-        ],
-    )
     motor = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
@@ -71,50 +52,22 @@ def test_lee_la_configuracion_y_los_modelos(client):
     assert "clave-de-prueba" not in str(datos)
 
 
-def test_muestra_hasta_diez_modelos_disponibles_en_gemini(client):
+def test_muestra_solo_los_modelos_configurados_en_gemini(client):
     datos = client.get("/config").json()
 
-    assert len(datos["gemini_modelos"]) == 10
-    assert datos["gemini_modelos_fuente"] == "api"
-    assert "gemini-3.8-flash" in datos["gemini_modelos"]
-    assert "gemini-3.0-pro" not in datos["gemini_modelos"]
-
-
-def test_lista_solo_modelos_gemini_compatibles_con_generate_content(monkeypatch):
-    elementos = [
-        SimpleNamespace(name="models/gemini-2.5-flash", supported_actions=["generateContent"]),
-        SimpleNamespace(name="models/gemini-embedding", supported_actions=["embedContent"]),
-        SimpleNamespace(name="models/otro-modelo", supported_actions=["generateContent"]),
-        SimpleNamespace(name="models/gemini-2.5-flash", supported_actions=["generateContent"]),
+    assert datos["gemini_modelos"] == [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-omni-1.1-flash",
     ]
-
-    class Modelos:
-        def list(self):
-            return elementos
-
-    class Cliente:
-        models = Modelos()
-
-    monkeypatch.setattr(configuracion.genai, "Client", lambda **kwargs: Cliente())
-
-    assert configuracion._listar_modelos_gemini_api("clave") == ["gemini-2.5-flash"]
-
-
-def test_modelo_actual_tiene_prioridad_dentro_del_limite(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "clave-prioridad")
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-modelo-actual")
-    monkeypatch.setattr(
-        configuracion,
-        "_listar_modelos_gemini_api",
-        lambda api_key: [f"gemini-modelo-{i}" for i in range(10)]
-        + ["gemini-modelo-actual"],
-    )
-
-    modelos, fuente = configuracion._modelos_gemini_cacheados("clave-prioridad", forzar=True)
-
-    assert len(modelos) == 10
-    assert modelos[0] == "gemini-modelo-actual"
-    assert fuente == "api"
+    assert datos["gemini_modelos_fuente"] == "configuracion"
+    assert datos["gemini_modelos_aviso"] is None
 
 
 def test_cambia_a_ollama_con_otro_modelo(client):
@@ -163,3 +116,7 @@ def test_gemini_sin_clave_se_rechaza(client, monkeypatch):
 
 def test_modelo_de_gemini_desconocido_se_rechaza(client):
     assert guardar(client, modelo="no-existe").status_code == 400
+
+
+def test_modelo_de_gemini_fuera_de_la_lista_se_rechaza(client):
+    assert guardar(client, modelo="gemini-2.5-pro").status_code == 400
